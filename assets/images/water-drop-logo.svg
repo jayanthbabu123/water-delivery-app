@@ -1,0 +1,26 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Main water drop shape -->
+  <path d="M100 20
+           C100 20, 180 100, 180 140
+           C180 173.137, 143.137 200, 100 200
+           C56.8629 200, 20 173.137, 20 140
+           C20 100, 100 20, 100 20Z"
+        fill="url(#water-gradient)"/>
+
+  <!-- Highlight/shine effect -->
+  <path d="M75 70
+           C75 70, 120 100, 120 120
+           C120 134.569, 106.569 146, 90 146
+           C73.4315 146, 60 134.569, 60 120
+           C60 100, 75 70, 75 70Z"
+        fill="white"
+        opacity="0.3"/>
+
+  <!-- Gradient definition -->
+  <defs>
+    <linearGradient id="water-gradient" x1="100" y1="20" x2="100" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2196F3"/>
+      <stop offset="100%" stop-color="#1976D2"/>
+    </linearGradient>
+  </defs>
+</svg>
