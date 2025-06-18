@@ -4,7 +4,8 @@
       "developmentClient": true,
       "distribution": "internal",
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "simulator": false
       }
     },
     "small-apk": {
@@ -30,7 +31,8 @@
         "buildType": "apk"
       },
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "simulator": false
       }
     },
     "production": {
@@ -49,7 +51,8 @@
     },
     "ios-preview": {
       "ios": {
-        "simulator": true
+        "simulator": false,
+        "resourceClass": "m-medium"
       },
       "env": {
         "EXPO_USE_LEGACY_PEER_DEPS": "1"

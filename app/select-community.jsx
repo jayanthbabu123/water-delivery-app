@@ -15,33 +15,41 @@ import {
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-import Button from "../components/ui/Button";
 import Select from "../components/ui/Select";
 
 // Mock data - In a real app, this would come from an API
 const COMMUNITIES = [
-  { value: "1", label: "Sunset Gardens" },
-  { value: "2", label: "Ocean View Apartments" },
-  { value: "3", label: "Mountain Heights" },
-  { value: "4", label: "Riverside Residences" },
-  { value: "5", label: "Green Valley Complex" },
+  { label: "Sunset Gardens", value: "sunset_gardens" },
+  { label: "Ocean View Apartments", value: "ocean_view" },
+  { label: "Mountain Heights", value: "mountain_heights" },
+  { label: "Riverside Residences", value: "riverside" },
 ];
 
 const APARTMENTS = {
-  1: [
-    { value: "101", label: "Unit 101" },
-    { value: "102", label: "Unit 102" },
-    { value: "201", label: "Unit 201" },
-    { value: "202", label: "Unit 202" },
+  sunset_gardens: [
+    { label: "101", value: "101" },
+    { label: "102", value: "102" },
+    { label: "201", value: "201" },
+    { label: "202", value: "202" },
   ],
-  2: [
-    { value: "301", label: "Unit 301" },
-    { value: "302", label: "Unit 302" },
-    { value: "401", label: "Unit 401" },
-    { value: "402", label: "Unit 402" },
+  ocean_view: [
+    { label: "A101", value: "A101" },
+    { label: "A102", value: "A102" },
+    { label: "B101", value: "B101" },
+    { label: "B102", value: "B102" },
   ],
-  // Add more apartments for other communities
+  mountain_heights: [
+    { label: "1A", value: "1A" },
+    { label: "1B", value: "1B" },
+    { label: "2A", value: "2A" },
+    { label: "2B", value: "2B" },
+  ],
+  riverside: [
+    { label: "101", value: "101" },
+    { label: "102", value: "102" },
+    { label: "201", value: "201" },
+    { label: "202", value: "202" },
+  ],
 };
 
 export default function SelectCommunityScreen() {
@@ -52,7 +60,7 @@ export default function SelectCommunityScreen() {
   const [errors, setErrors] = useState({});
   const windowHeight = Dimensions.get('window').height;
 
-  const handleContinue = async () => {
+  const validateForm = () => {
     const newErrors = {};
     if (!selectedCommunity) {
       newErrors.community = "Please select a community";
@@ -61,109 +69,127 @@ export default function SelectCommunityScreen() {
       newErrors.apartment = "Please select an apartment";
     }
     if (!name.trim()) {
-      newErrors.name = "Please enter your name";
+      newErrors.name = "Name is required";
     }
     if (!email.trim()) {
-      newErrors.email = "Please enter your email";
+      newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = "Please enter a valid email address";
+      newErrors.email = "Please enter a valid email";
     }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
+  const handleContinue = async () => {
+    if (validateForm()) {
+      try {
+        // Save community selection and user information to storage
+        await AsyncStorage.setItem("selectedCommunity", selectedCommunity);
+        await AsyncStorage.setItem("selectedApartment", selectedApartment);
+        await AsyncStorage.setItem("userName", name);
+        await AsyncStorage.setItem("userEmail", email);
 
-    try {
-      // Save community selection and user information to storage
-      await AsyncStorage.setItem("selectedCommunity", selectedCommunity);
-      await AsyncStorage.setItem("selectedApartment", selectedApartment);
-      await AsyncStorage.setItem("userName", name);
-      await AsyncStorage.setItem("userEmail", email);
-
-      // Navigate to role selection
-      router.push("/role-select");
-    } catch (error) {
-      console.error("Error saving selection:", error);
+        // Navigate to role selection
+        router.push("/role-select");
+      } catch (error) {
+        console.error("Error saving selection:", error);
+      }
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.keyboardAvoidingView}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-      >
-        <ScrollView 
-          contentContainerStyle={[styles.scrollContent, { minHeight: windowHeight * 0.9 }]}
-          keyboardShouldPersistTaps="handled"
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
         >
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-            </TouchableOpacity>
-            <Text style={styles.title}>Select Location</Text>
-          </View>
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.title}>Select Location</Text>
+        <View style={styles.placeholderView} />
+      </View>
 
-          <View style={styles.content}>
-            <Text style={styles.subtitle}>
-              Choose your community and apartment number
-            </Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardAvoidingView}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.subtitle}>
+          Please provide your details to help us serve you better
+          </Text>
 
-            <Select
-              label="Select Community"
-              value={selectedCommunity}
-              options={COMMUNITIES}
-              onSelect={setSelectedCommunity}
-              placeholder="Choose your community"
-              error={errors.community}
-              searchable
-            />
-
-            <Select
-              label="Select Apartment"
-              value={selectedApartment}
-              options={APARTMENTS[selectedCommunity] || []}
-              onSelect={setSelectedApartment}
-              placeholder="Choose your apartment"
-              error={errors.apartment}
-              disabled={!selectedCommunity}
-            />
-
-            <TextInput
-              style={[styles.input, errors.name && styles.inputError]}
-              placeholder="Enter your name"
-              value={name}
-              onChangeText={setName}
-            />
-            {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
-
-            <TextInput
-              style={[styles.input, errors.email && styles.inputError]}
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            {errors.email && (
-              <Text style={styles.errorText}>{errors.email}</Text>
-            )}
-
-            <View style={styles.buttonContainer}>
-              <Button
-                title="Continue"
-                onPress={handleContinue}
-                disabled={
-                  !selectedCommunity || !selectedApartment || !name || !email
-                }
+          <View style={styles.formContainer}>
+            {/* Community Selection */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Select Community</Text>
+              <Select
+                value={selectedCommunity}
+                options={COMMUNITIES}
+                onSelect={setSelectedCommunity}
+                placeholder="Choose your community"
+                error={errors.community}
+                searchable
               />
             </View>
+
+            {/* Apartment Selection */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Select Apartment</Text>
+              <Select
+                value={selectedApartment}
+                options={APARTMENTS[selectedCommunity] || []}
+                onSelect={setSelectedApartment}
+                placeholder="Choose your apartment"
+                error={errors.apartment}
+                disabled={!selectedCommunity}
+              />
+            </View>
+
+            {/* Name Input */}
+            <View style={[styles.inputGroup, styles.nameInputGroup]}>
+              <Text style={styles.inputLabel}>Full Name</Text>
+              <TextInput
+                style={[styles.input, styles.nameInput, errors.name && styles.inputError]}
+                value={name}
+                onChangeText={setName}
+                placeholder="Enter your full name"
+                placeholderTextColor="#999"
+              />
+              {errors.name && (
+                <Text style={styles.errorText}>{errors.name}</Text>
+              )}
+            </View>
+
+            {/* Email Input */}
+            <View style={[styles.inputGroup, styles.emailInputGroup]}>
+              <Text style={styles.inputLabel}>Email Address</Text>
+              <TextInput
+                style={[styles.input, styles.emailInput, errors.email && styles.inputError]}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Enter your email address"
+                placeholderTextColor="#999"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              {errors.email && (
+                <Text style={styles.errorText}>{errors.email}</Text>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              style={styles.continueButton}
+              onPress={handleContinue}
+            >
+              <Text style={styles.continueButtonText}>Continue</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -181,11 +207,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    padding: 16,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
   },
@@ -197,38 +224,74 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
     color: "#1a1a1a",
-  },
-  content: {
     flex: 1,
-    padding: 20,
-    justifyContent: "space-between",
+    textAlign: "center",
+  },
+  placeholderView: {
+    width: 40,
   },
   subtitle: {
     fontSize: 16,
     color: "#666",
     marginBottom: 24,
+    textAlign: "center",
   },
-  buttonContainer: {
-    marginTop: 24,
-    marginBottom: Platform.OS === "ios" ? 20 : 0,
+  formContainer: {
+    marginBottom: 12,
+  },
+  inputGroup: {
+    marginBottom: 0,
+  },
+  nameInputGroup: {
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  emailInputGroup: {
+    marginBottom: 0,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#333",
+    marginBottom: 4,
   },
   input: {
-    height: 50,
+    height: 42,
     borderWidth: 1,
     borderColor: "#ddd",
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
-    marginTop: 16,
     fontSize: 16,
     backgroundColor: "#fff",
+  },
+  nameInput: {
+    marginBottom: 0,
+  },
+  emailInput: {
+    marginBottom: 0,
   },
   inputError: {
     borderColor: "#ff3b30",
   },
   errorText: {
     color: "#ff3b30",
-    fontSize: 14,
-    marginTop: 4,
+    fontSize: 12,
+    marginTop: 2,
     marginLeft: 4,
+  },
+  buttonContainer: {
+    marginTop: 12,
+    marginBottom: Platform.OS === "ios" ? 16 : 0,
+  },
+  continueButton: {
+    backgroundColor: "#007AFF",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  continueButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

@@ -2,14 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
   FlatList,
+  Keyboard,
   Modal,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  Keyboard,
-  Platform,
+  View
 } from "react-native";
 
 export default function Select({
@@ -141,13 +140,12 @@ export default function Select({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
-    height: Platform.OS === "ios" ? 100 : 90,
+    marginBottom: 0,
   },
   label: {
     fontSize: 14,
     color: "#666",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   select: {
     flexDirection: "row",
@@ -157,9 +155,9 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     backgroundColor: "#fff",
-    height: 48,
+    height: 42,
   },
   selectError: {
     borderColor: "#ff3b30",
@@ -176,8 +174,8 @@ const styles = StyleSheet.create({
     color: "#999",
   },
   errorContainer: {
-    height: 20,
-    marginTop: 4,
+    height: 16,
+    marginTop: 2,
   },
   errorText: {
     color: "#ff3b30",

@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Dimensions,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -108,6 +109,14 @@ export default function OTPVerificationScreen() {
                 keyboardType="number-pad"
                 maxLength={1}
                 selectTextOnFocus
+                returnKeyType={index === 5 ? "done" : "next"}
+                onSubmitEditing={() => {
+                  if (index === 5) {
+                    Keyboard.dismiss();
+                  } else {
+                    inputRefs.current[index + 1]?.focus();
+                  }
+                }}
               />
             ))}
           </View>
