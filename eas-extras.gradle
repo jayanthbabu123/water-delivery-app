@@ -1,0 +1,83 @@
+// This file contains build settings for EAS builds
+// https://docs.expo.dev/build-reference/gradle-properties/
+
+android {
+    // Enables Proguard for minifying the Android app bundle and APK
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    // Reduce APK size by including only the ABIs your app needs
+    splits {
+        abi {
+            enable true
+            reset()
+            include "armeabi-v7a", "arm64-v8a"
+            universalApk false
+        }
+    }
+
+    // Disable unused features to reduce APK size
+    defaultConfig {
+        vectorDrawables.useSupportLibrary = true
+    }
+
+    // Enable Hermes as the JavaScript engine
+    packagingOptions {
+        // Remove unused files to reduce APK size
+        exclude "**/libjsc.so" // Use Hermes instead
+        exclude "**/libreactnativejni.so" // Already included in other libs
+        exclude "**/libfolly_json.so"
+        exclude "**/libglog.so"
+        exclude "**/libfb.so"
+
+        // Exclude unnecessary architectures
+        exclude "**/x86/**"
+        exclude "**/x86_64/**"
+
+        // Exclude unnecessary resources
+        exclude "**/NOTICE"
+        exclude "**/LICENSE"
+        exclude "META-INF/DEPENDENCIES"
+        exclude "META-INF/LICENSE"
+        exclude "META-INF/LICENSE.txt"
+        exclude "META-INF/license.txt"
+        exclude "META-INF/NOTICE"
+        exclude "META-INF/NOTICE.txt"
+        exclude "META-INF/notice.txt"
+        exclude "META-INF/ASL2.0"
+    }
+
+    // Ensure Hermes is enabled
+    dexOptions {
+        javaMaxHeapSize "2g"
+    }
+}
+
+// Reduce native library size
+project.ext.react = [
+    enableHermes: true,
+    extraPackagerArgs: ["--minify", "true"],
+]
+
+// Firebase size optimization
+configurations.all {
+    exclude group: 'com.google.firebase', module: 'firebase-admin'
+    exclude group: 'com.google.firebase', module: 'firebase-analytics-ktx'
+    exclude group: 'com.google.firebase', module: 'firebase-inappmessaging'
+    exclude group: 'com.google.firebase', module: 'firebase-inappmessaging-display'
+    exclude group: 'com.google.firebase', module: 'firebase-messaging-directboot'
+    exclude group: 'com.google.firebase', module: 'firebase-database'
+    exclude group: 'com.google.firebase', module: 'firebase-database-ktx'
+    exclude group: 'com.google.firebase', module: 'firebase-functions'
+    exclude group: 'com.google.firebase', module: 'firebase-functions-ktx'
+    exclude group: 'com.google.firebase', module: 'firebase-dynamic-links'
+    exclude group: 'com.google.firebase', module: 'firebase-installations'
+    exclude group: 'com.google.firebase', module: 'firebase-installations-ktx'
+    exclude group: 'com.google.firebase', module: 'firebase-messaging-ktx'
+    exclude group: 'com.google.firebase', module: 'firebase-ml-vision'
+}

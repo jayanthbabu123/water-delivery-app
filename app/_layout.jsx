@@ -20,6 +20,7 @@ import { useColorScheme } from "@/hooks/useColorScheme";
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [isAuthenticated, setIsAuthenticated] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
@@ -31,9 +32,12 @@ export default function RootLayout() {
   const checkAuthStatus = async () => {
     try {
       const token = await AsyncStorage.getItem("userToken");
+      const role = await AsyncStorage.getItem("userRole");
       setIsAuthenticated(!!token);
+      setUserRole(role);
     } catch (error) {
       setIsAuthenticated(false);
+      setUserRole(null);
     }
   };
 
@@ -54,13 +58,14 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: "white" },
           }}
         >
-          <Stack.Screen name="index" redirect={true} />
+          <Stack.Screen name="index" redirect={isAuthenticated} />
           <Stack.Screen name="login" />
           <Stack.Screen name="otp-verification" />
           <Stack.Screen name="select-community" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="order" />
-          <Stack.Screen name="add-payment" />
+          <Stack.Screen name="role-select" />
+          <Stack.Screen name="(customer)" />
+          <Stack.Screen name="(admin)" />
+          <Stack.Screen name="(delivery)" />
           <Stack.Screen name="+not-found" />
         </Stack>
         <StatusBar style="auto" />

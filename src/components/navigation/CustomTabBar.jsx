@@ -48,18 +48,6 @@ export function CustomTabBar({ state, descriptors, navigation }) {
           }
         };
 
-        // Static icon names based on route name
-        let iconName;
-        if (route.name === "home") {
-          iconName = isFocused ? "home" : "home-outline";
-        } else if (route.name === "orders") {
-          iconName = isFocused ? "list" : "list-outline";
-        } else if (route.name === "payments") {
-          iconName = isFocused ? "card" : "card-outline";
-        } else if (route.name === "profile") {
-          iconName = isFocused ? "person" : "person-outline";
-        }
-
         return (
           <TouchableOpacity
             key={index}
@@ -70,11 +58,19 @@ export function CustomTabBar({ state, descriptors, navigation }) {
             onPress={onPress}
             style={styles.tabButton}
           >
-            <Ionicons
-              name={iconName}
-              size={24}
-              color={isFocused ? "#1976D2" : "#8E8E93"}
-            />
+            {options.tabBarIcon ? (
+              options.tabBarIcon({
+                focused: isFocused,
+                color: isFocused ? "#1976D2" : "#8E8E93",
+                size: 24,
+              })
+            ) : (
+              <Ionicons
+                name="apps-outline"
+                size={24}
+                color={isFocused ? "#1976D2" : "#8E8E93"}
+              />
+            )}
             <Text
               style={[
                 styles.tabLabel,

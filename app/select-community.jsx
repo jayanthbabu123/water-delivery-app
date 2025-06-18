@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import {
-  Alert,
+  Dimensions,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -11,10 +12,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import Button from "../components/ui/Button";
 import Select from "../components/ui/Select";
@@ -50,6 +50,7 @@ export default function SelectCommunityScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [errors, setErrors] = useState({});
+  const windowHeight = Dimensions.get('window').height;
 
   const handleContinue = async () => {
     const newErrors = {};
@@ -74,12 +75,14 @@ export default function SelectCommunityScreen() {
     }
 
     try {
-      // Save community selection to storage (in a real app)
-      // await AsyncStorage.setItem('selectedCommunity', selectedCommunity);
-      // await AsyncStorage.setItem('selectedApartment', selectedApartment);
+      // Save community selection and user information to storage
+      await AsyncStorage.setItem("selectedCommunity", selectedCommunity);
+      await AsyncStorage.setItem("selectedApartment", selectedApartment);
+      await AsyncStorage.setItem("userName", name);
+      await AsyncStorage.setItem("userEmail", email);
 
-      // Navigate to tabs (home)
-      router.push("/(tabs)/home");
+      // Navigate to role selection
+      router.push("/role-select");
     } catch (error) {
       console.error("Error saving selection:", error);
     }
@@ -89,10 +92,14 @@ export default function SelectCommunityScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.keyboardAvoidingView}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView 
+          contentContainerStyle={[styles.scrollContent, { minHeight: windowHeight * 0.9 }]}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => router.back()}
@@ -194,6 +201,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 20,
+    justifyContent: "space-between",
   },
   subtitle: {
     fontSize: 16,
@@ -201,8 +209,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   buttonContainer: {
-    marginTop: "auto",
-    paddingTop: 24,
+    marginTop: 24,
+    marginBottom: Platform.OS === "ios" ? 20 : 0,
   },
   input: {
     height: 50,
@@ -212,6 +220,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 16,
     fontSize: 16,
+    backgroundColor: "#fff",
   },
   inputError: {
     borderColor: "#ff3b30",

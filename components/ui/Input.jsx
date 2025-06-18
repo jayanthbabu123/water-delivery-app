@@ -1,5 +1,12 @@
-import React from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useState } from "react";
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  Keyboard,
+  Platform,
+} from "react-native";
 
 export default function Input({
   label,
@@ -7,18 +14,21 @@ export default function Input({
   onChangeText,
   placeholder,
   error,
-  keyboardType = 'default',
+  keyboardType = "default",
   maxLength,
   style,
   ...props
 }) {
+  const [isFocused, setIsFocused] = useState(false);
+
   return (
     <View style={[styles.container, style]}>
       {label && <Text style={styles.label}>{label}</Text>}
       <TextInput
         style={[
           styles.input,
-          error && styles.inputError
+          error && styles.inputError,
+          isFocused && styles.inputFocused,
         ]}
         value={value}
         onChangeText={onChangeText}
@@ -26,9 +36,22 @@ export default function Input({
         placeholderTextColor="#999"
         keyboardType={keyboardType}
         maxLength={maxLength}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => {
+          setIsFocused(false);
+          if (Platform.OS === "ios") {
+            setTimeout(() => Keyboard.dismiss(), 100);
+          }
+        }}
         {...props}
       />
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      <View style={styles.errorContainer}>
+        {error ? (
+          <Text style={styles.errorText}>{error}</Text>
+        ) : (
+          <Text style={styles.hiddenText}>_</Text>
+        )}
+      </View>
     </View>
   );
 }
@@ -36,28 +59,41 @@ export default function Input({
 const styles = StyleSheet.create({
   container: {
     marginBottom: 16,
+    height: Platform.OS === "ios" ? 100 : 90,
   },
   label: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
     marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#1a1a1a',
-    backgroundColor: '#fff',
+    color: "#1a1a1a",
+    backgroundColor: "#fff",
+    height: 48,
   },
   inputError: {
-    borderColor: '#ff3b30',
+    borderColor: "#ff3b30",
   },
-  errorText: {
-    color: '#ff3b30',
-    fontSize: 12,
+  inputFocused: {
+    borderColor: "#007AFF",
+    borderWidth: 2,
+  },
+  errorContainer: {
+    height: 20,
     marginTop: 4,
   },
-}); 
+  errorText: {
+    color: "#ff3b30",
+    fontSize: 12,
+  },
+  hiddenText: {
+    color: "transparent",
+    fontSize: 12,
+  },
+});

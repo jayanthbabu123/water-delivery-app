@@ -1,6 +1,11 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
   <item android:drawable="@color/splashscreen_background"/>
+  <!-- Removed splash screen logo reference to fix build -->
   <item>
-    <bitmap android:gravity="center" android:src="@drawable/splashscreen_logo"/>
+    <shape android:shape="rectangle">
+      <solid android:color="#2196F3"/>
+      <size android:width="120dp" android:height="120dp"/>
+      <corners android:radius="60dp"/>
+    </shape>
   </item>
 </layer-list>

@@ -1,7 +1,10 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
+  Dimensions,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -9,15 +12,14 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function OTPVerificationScreen() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timer, setTimer] = useState(30);
   const inputRefs = useRef([]);
+  const windowHeight = Dimensions.get('window').height;
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -52,7 +54,10 @@ export default function OTPVerificationScreen() {
       try {
         // Set a token for authenticated state
         // This token would normally come from your backend after verification
-        await AsyncStorage.setItem("userToken", "demo-token");
+        await AsyncStorage.setItem("userToken", "demo-token-" + Date.now());
+
+        // Store phone number for future reference
+        await AsyncStorage.setItem("userPhone", "+1XXXXXXXXXX");
 
         // Navigate to community selection
         router.push("/select-community");
@@ -79,14 +84,17 @@ export default function OTPVerificationScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.keyboardAvoidingView}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        <View style={styles.content}>
-          <Text style={styles.title}>Enter Verification Code</Text>
-          <Text style={styles.subtitle}>
-            We have sent a verification code to your phone number
-          </Text>
+        <View style={[styles.content, { minHeight: windowHeight * 0.8 }]}>
+          <View style={styles.headerSection}>
+            <Text style={styles.title}>Enter Verification Code</Text>
+            <Text style={styles.subtitle}>
+              We have sent a verification code to your phone number
+            </Text>
+          </View>
 
           {/* OTP Input Fields */}
           <View style={styles.otpContainer}>
@@ -156,7 +164,11 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 20,
-    justifyContent: "center",
+    justifyContent: "space-between",
+  },
+  headerSection: {
+    marginTop: 40,
+    marginBottom: 40,
   },
   title: {
     fontSize: 28,
@@ -169,12 +181,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     textAlign: "center",
-    marginBottom: 32,
   },
   otpContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 32,
+    paddingHorizontal: 20,
   },
   otpInput: {
     width: 45,
@@ -214,6 +226,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
+    marginBottom: 20,
   },
   verifyButtonDisabled: {
     backgroundColor: "#ccc",
