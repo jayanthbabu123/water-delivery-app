@@ -1,7 +1,12 @@
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import {
+  Alert,
+  Animated,
+  Dimensions,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -9,45 +14,85 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Image,
-  Dimensions,
-  Animated,
-  Alert,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import Svg, { Path, Circle, G } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
+import {
+  sendOTP,
+  validateIndianPhoneNumber,
+  formatPhoneNumber,
+} from "../src/services/auth";
 
 export default function LoginScreen() {
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [countryCode, setCountryCode] = useState("+1");
   const [isFocused, setIsFocused] = useState(false);
+  const [loading, setLoading] = useState(false);
   const animatedValue = React.useRef(new Animated.Value(0)).current;
 
-  const handleSendOTP = () => {
-    // In a production app, we would validate phone number and send OTP
-    if (!phoneNumber.trim()) {
-      alert("Please enter a valid phone number");
-      return;
-    }
+  const handleSendOTP = async () => {
+    try {
+      setLoading(true);
 
-    // Add animation before navigation
-    Animated.sequence([
-      Animated.timing(animatedValue, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(animatedValue, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
+      // Validate phone number input
+      if (!phoneNumber.trim()) {
+        Alert.alert("Error", "Please enter your phone number");
+        setLoading(false);
+        return;
+      }
+
+      // Validate and format phone number for Indian numbers
+      let formattedNumber;
+      try {
+        formattedNumber = validateIndianPhoneNumber(phoneNumber);
+      } catch (validationError) {
+        Alert.alert("Invalid Phone Number", validationError.message);
+        setLoading(false);
+        return;
+      }
+
+      // Send OTP
+      const confirmation = await sendOTP(phoneNumber);
+
+      // Store confirmation data (we can't store the actual confirmation object)
+      const confirmationData = {
+        verificationId: `verification_${Date.now()}`,
+        phoneNumber: formattedNumber,
+        timestamp: Date.now(),
+      };
+
+      await AsyncStorage.setItem(
+        "confirmationId",
+        JSON.stringify(confirmationData),
+      );
+
+      // Store the actual confirmation object in a temporary key for the next screen
+      global.currentConfirmation = confirmation;
+
       // Navigate to OTP verification screen
-      router.push("/otp-verification");
-    });
+      router.push({
+        pathname: "/otp-verification",
+        params: {
+          phoneNumber: formattedNumber,
+          displayNumber: formatPhoneNumber(formattedNumber),
+        },
+      });
+    } catch (error) {
+      let errorMessage = "Failed to send OTP. Please try again.";
+
+      if (error.message.includes("too-many-requests")) {
+        errorMessage = "Too many requests. Please wait before trying again.";
+      } else if (error.message.includes("quota-exceeded")) {
+        errorMessage = "SMS limit reached. Please try again later.";
+      } else if (error.message.includes("invalid-phone-number")) {
+        errorMessage = "Invalid phone number. Please check and try again.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   React.useEffect(() => {
@@ -139,15 +184,6 @@ export default function LoginScreen() {
             </Text>
           </Animated.View>
 
-          {/* Welcome Text */}
-
-          {/* <Text style={styles.subtitleText}>
-            Premium water delivery at your doorstep
-          </Text>
-          <Text style={styles.quoteText}>
-            "Pure water, delivered with care, right when you need it."
-          </Text> */}
-
           {/* Phone Input */}
           <Text style={styles.inputLabel}>Phone Number</Text>
           <View
@@ -157,25 +193,23 @@ export default function LoginScreen() {
             ]}
           >
             <View style={styles.countryCodeContainer}>
-              <TextInput
-                style={styles.countryCodeInput}
-                value={countryCode}
-                onChangeText={setCountryCode}
-                keyboardType="phone-pad"
-                maxLength={4}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-              />
+              <Text style={styles.countryCodeText}>+91</Text>
             </View>
             <TextInput
               style={styles.phoneInput}
               value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              placeholder="Enter your phone number"
+              onChangeText={(text) => {
+                // Allow only digits and limit to 10 characters
+                const cleaned = text.replace(/\D/g, "").slice(0, 10);
+                setPhoneNumber(cleaned);
+              }}
+              placeholder="Enter your 10-digit number"
               keyboardType="phone-pad"
               maxLength={10}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
+              autoCompleteType="tel"
+              textContentType="telephoneNumber"
             />
           </View>
 
@@ -183,18 +217,23 @@ export default function LoginScreen() {
           <TouchableOpacity
             style={[
               styles.sendOTPButton,
-              !phoneNumber && styles.sendOTPButtonDisabled,
+              (!phoneNumber || phoneNumber.length < 10 || loading) &&
+                styles.sendOTPButtonDisabled,
             ]}
             onPress={handleSendOTP}
-            disabled={!phoneNumber.trim()}
+            disabled={!phoneNumber.trim() || phoneNumber.length < 10 || loading}
           >
-            <Text style={styles.sendOTPButtonText}>Continue</Text>
-            <Ionicons
-              name="arrow-forward"
-              size={20}
-              color="#FFFFFF"
-              style={styles.buttonIcon}
-            />
+            <Text style={styles.sendOTPButtonText}>
+              {loading ? "Sending OTP..." : "Continue"}
+            </Text>
+            {!loading && (
+              <Ionicons
+                name="arrow-forward"
+                size={20}
+                color="#FFFFFF"
+                style={styles.buttonIcon}
+              />
+            )}
           </TouchableOpacity>
 
           <View style={styles.termsContainer}>
@@ -224,7 +263,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   gradientBackground: {
-    display: "none", // Hide the blue background
+    display: "none",
   },
   wavesContainer: {
     position: "absolute",
@@ -248,132 +287,90 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 45,
-    backgroundColor: "#E3F2FD",
-    alignItems: "center",
+    backgroundColor: "#F5F5F5",
     justifyContent: "center",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    marginBottom: 15,
+    alignItems: "center",
+    marginBottom: 16,
   },
   logoText: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#333333",
-    letterSpacing: 1,
-  },
-  logoTextHighlight: {
-    color: "#1976D2",
-  },
-  welcomeText: {
     fontSize: 28,
     fontWeight: "bold",
     color: "#333333",
-    textAlign: "center",
-    marginBottom: 10,
   },
-  subtitleText: {
-    fontSize: 16,
-    color: "#666666",
-    textAlign: "center",
-    marginBottom: 10,
-    fontWeight: "500",
-  },
-  quoteText: {
-    fontSize: 14,
-    fontStyle: "italic",
+  logoTextHighlight: {
     color: "#1976D2",
-    textAlign: "center",
-    marginBottom: 40,
-    paddingHorizontal: 30,
-    lineHeight: 20,
   },
   inputLabel: {
     fontSize: 16,
     fontWeight: "600",
     color: "#333333",
     marginBottom: 8,
-    marginLeft: 4,
   },
   phoneInputContainer: {
     flexDirection: "row",
-    marginBottom: 30,
     borderWidth: 1,
-    borderColor: "#BBDEFB",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
+    borderColor: "#E0E0E0",
+    borderRadius: 12,
     overflow: "hidden",
-    height: 50,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    marginBottom: 24,
+    backgroundColor: "#F5F5F5",
   },
   phoneInputContainerFocused: {
     borderColor: "#1976D2",
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
   },
   countryCodeContainer: {
+    paddingHorizontal: 16,
+    justifyContent: "center",
     borderRightWidth: 1,
     borderRightColor: "#E0E0E0",
-    paddingHorizontal: 12,
-    justifyContent: "center",
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#FFFFFF",
   },
-  countryCodeInput: {
+  countryCodeText: {
     fontSize: 16,
-    color: "#333",
-    paddingVertical: 12,
-    fontWeight: "500",
+    color: "#333333",
+    fontWeight: "600",
   },
   phoneInput: {
     flex: 1,
-    fontSize: 16,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    color: "#333",
+    fontSize: 16,
+    color: "#333333",
+    backgroundColor: "#FFFFFF",
   },
   sendOTPButton: {
     backgroundColor: "#1976D2",
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: "center",
+    borderRadius: 12,
+    paddingVertical: 16,
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
+    marginBottom: 24,
   },
   sendOTPButtonDisabled: {
-    backgroundColor: "rgba(25, 118, 210, 0.5)",
-    elevation: 0,
-    shadowOpacity: 0,
+    backgroundColor: "#BDBDBD",
   },
   sendOTPButtonText: {
-    color: "#fff",
+    color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
+    marginRight: 8,
   },
   buttonIcon: {
-    marginLeft: 8,
+    marginLeft: 4,
   },
   termsContainer: {
-    marginTop: 24,
     alignItems: "center",
   },
   termsText: {
-    fontSize: 12,
-    color: "rgba(0, 0, 0, 0.6)",
     textAlign: "center",
-    lineHeight: 18,
+    color: "#757575",
+    fontSize: 14,
+    lineHeight: 20,
   },
   termsLink: {
-    color: "#007AFF",
-    fontWeight: "500",
+    color: "#1976D2",
+    textDecorationLine: "underline",
   },
 });

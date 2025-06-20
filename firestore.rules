@@ -1,0 +1,226 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserId() {
+      return request.auth.uid;
+    }
+
+    function isOwner(userId) {
+      return getUserId() == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(getUserId())).data.role == 'admin';
+    }
+
+    function isDeliveryPartner() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(getUserId())).data.role == 'delivery_partner';
+    }
+
+    function isCustomer() {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(getUserId())).data.role == 'customer';
+    }
+
+    // Users Collection Rules
+    match /users/{userId} {
+      // Users can read and write their own data
+      allow read, write: if isOwner(userId);
+
+      // Admins can read all users
+      allow read: if isAdmin();
+
+      // Admins can update user status and role
+      allow update: if isAdmin() &&
+                    request.resource.data.diff(resource.data).affectedKeys()
+                    .hasOnly(['status', 'role', 'updatedAt']);
+    }
+
+    // Communities Collection Rules
+    match /communities/{communityId} {
+      // Anyone authenticated can read communities
+      allow read: if isAuthenticated();
+
+      // Only admins can create, update, delete communities
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Addresses Collection Rules
+    match /addresses/{addressId} {
+      // Users can only access their own addresses
+      allow read, write: if isAuthenticated() &&
+                         resource.data.userId == getUserId();
+
+      // Users can create addresses for themselves
+      allow create: if isAuthenticated() &&
+                    request.resource.data.userId == getUserId();
+
+      // Admins can read all addresses
+      allow read: if isAdmin();
+
+      // Delivery partners can read addresses for their assigned orders
+      allow read: if isDeliveryPartner();
+    }
+
+    // Products Collection Rules
+    match /products/{productId} {
+      // Anyone authenticated can read products
+      allow read: if isAuthenticated();
+
+      // Only admins can create, update, delete products
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Orders Collection Rules
+    match /orders/{orderId} {
+      // Users can read their own orders
+      allow read: if isAuthenticated() &&
+                  resource.data.userId == getUserId();
+
+      // Users can create orders for themselves
+      allow create: if isAuthenticated() &&
+                    request.resource.data.userId == getUserId() &&
+                    request.resource.data.status == 'pending';
+
+      // Users can cancel their own pending orders
+      allow update: if isAuthenticated() &&
+                    resource.data.userId == getUserId() &&
+                    resource.data.status == 'pending' &&
+                    request.resource.data.status == 'cancelled';
+
+      // Admins can read and update all orders
+      allow read, update: if isAdmin();
+
+      // Delivery partners can read and update orders assigned to them
+      allow read: if isDeliveryPartner() &&
+                  resource.data.deliveryInfo.deliveryPartnerId == getUserId();
+
+      allow update: if isDeliveryPartner() &&
+                    resource.data.deliveryInfo.deliveryPartnerId == getUserId() &&
+                    request.resource.data.diff(resource.data).affectedKeys()
+                    .hasOnly(['status', 'deliveryInfo', 'timeline', 'updatedAt']);
+    }
+
+    // Order Timeline Subcollection Rules
+    match /orders/{orderId}/timeline/{timelineId} {
+      // Users can read timeline for their own orders
+      allow read: if isAuthenticated() &&
+                  get(/databases/$(database)/documents/orders/$(orderId)).data.userId == getUserId();
+
+      // Admins can read and write all timelines
+      allow read, write: if isAdmin();
+
+      // Delivery partners can read and add timeline entries for their orders
+      allow read, create: if isDeliveryPartner() &&
+                          get(/databases/$(database)/documents/orders/$(orderId)).data.deliveryInfo.deliveryPartnerId == getUserId();
+    }
+
+    // Payments Collection Rules
+    match /payments/{paymentId} {
+      // Users can read their own payments
+      allow read: if isAuthenticated() &&
+                  resource.data.userId == getUserId();
+
+      // System can create payments (via Cloud Functions)
+      allow create: if isAuthenticated();
+
+      // Admins can read all payments
+      allow read: if isAdmin();
+
+      // No direct updates allowed - payments should be updated via Cloud Functions
+    }
+
+    // Notifications Collection Rules
+    match /notifications/{notificationId} {
+      // Users can read their own notifications
+      allow read: if isAuthenticated() &&
+                  resource.data.userId == getUserId();
+
+      // Users can update read status of their notifications
+      allow update: if isAuthenticated() &&
+                    resource.data.userId == getUserId() &&
+                    request.resource.data.diff(resource.data).affectedKeys()
+                    .hasOnly(['isRead', 'readAt']);
+
+      // System can create notifications
+      allow create: if isAuthenticated();
+
+      // Admins can read all notifications
+      allow read: if isAdmin();
+    }
+
+    // Analytics and Logs (Admin only)
+    match /analytics/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    match /logs/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // App Settings (Admin only)
+    match /settings/{settingId} {
+      // Anyone can read public settings
+      allow read: if isAuthenticated() && resource.data.isPublic == true;
+
+      // Only admins can read and write all settings
+      allow read, write: if isAdmin();
+    }
+
+    // Delivery Routes and Zones (Admin and Delivery Partners)
+    match /deliveryZones/{zoneId} {
+      // Anyone authenticated can read delivery zones
+      allow read: if isAuthenticated();
+
+      // Only admins can create, update, delete zones
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Support Tickets
+    match /supportTickets/{ticketId} {
+      // Users can read and create their own tickets
+      allow read, create: if isAuthenticated() &&
+                          resource.data.userId == getUserId();
+
+      // Users can update their own open tickets
+      allow update: if isAuthenticated() &&
+                    resource.data.userId == getUserId() &&
+                    resource.data.status in ['open', 'in_progress'];
+
+      // Admins can read and update all tickets
+      allow read, update: if isAdmin();
+    }
+
+    // Feedback and Reviews
+    match /reviews/{reviewId} {
+      // Users can read all reviews
+      allow read: if isAuthenticated();
+
+      // Users can create reviews for their own completed orders
+      allow create: if isAuthenticated() &&
+                    request.resource.data.userId == getUserId();
+
+      // Users can update their own reviews within 24 hours
+      allow update: if isAuthenticated() &&
+                    resource.data.userId == getUserId() &&
+                    resource.data.createdAt > (request.time - duration.value(86400, 's'));
+
+      // Admins can moderate all reviews
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Default deny rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

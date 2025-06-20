@@ -1,38 +1,32 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
-import { getFunctions } from "firebase/functions";
-import { getAnalytics } from "firebase/analytics";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { initializeAuth, getReactNativePersistence } from "firebase/auth";
+// Import React Native Firebase modules
+import { firebase } from "@react-native-firebase/app";
+import "@react-native-firebase/auth";
+import "@react-native-firebase/firestore";
+import "@react-native-firebase/storage";
+import "@react-native-firebase/functions";
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
-  measurementId: "YOUR_MEASUREMENT_ID",
+  apiKey: "AIzaSyCyQ4fhTA-JRZqoI2pkxezqBzEnilYX3m0",
+  authDomain: "water-delivery-app-92ba4.firebaseapp.com",
+  projectId: "water-delivery-app-92ba4",
+  storageBucket: "water-delivery-app-92ba4.firebasestorage.app",
+  messagingSenderId: "976235379245",
+  appId: "1:976235379245:web:3174f6eb90f815c2a956a4",
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase if not already initialized
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+} else {
+  firebase.app(); // if already initialized, use that one
+}
 
-// Initialize Firebase Auth with AsyncStorage persistence
-const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
+// Export Firebase services using React Native Firebase
+export const auth = firebase.auth();
+export const firestore = firebase.firestore();
+export const storage = firebase.storage();
+export const functions = firebase.functions();
 
-// Initialize other Firebase services
-const firestore = getFirestore(app);
-const storage = getStorage(app);
-const functions = getFunctions(app);
-const analytics = getAnalytics(app);
-
-// Export the Firebase services
-export { app, auth, firestore, storage, functions, analytics };
+// Export the firebase app instance
+export default firebase;
