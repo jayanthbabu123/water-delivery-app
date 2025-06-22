@@ -19,6 +19,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { sendOTP, verifyOTP } from "../src/services/auth";
+import UserService from "../src/services/user";
 
 // Utility function to extract user-friendly error messages
 const getErrorMessage = (error, isResendError = false) => {
@@ -267,11 +268,18 @@ export default function OTPVerificationScreen() {
       // Check if we have a stored confirmation object in memory
       if (confirmation) {
         // Verify OTP with stored confirmation
-        const user = await verifyOTP(confirmation, otpString);
+        const firebaseUser = await verifyOTP(confirmation, otpString);
 
-        // Success - store user data
-        await AsyncStorage.setItem("userToken", user.uid);
+        // Handle complete user authentication flow
+        const authResult = await UserService.handleUserAuthFlow(
+          phoneNumber,
+          firebaseUser,
+        );
+
+        // Store user session data
+        await AsyncStorage.setItem("userToken", firebaseUser.uid);
         await AsyncStorage.setItem("userPhone", phoneNumber);
+        await AsyncStorage.setItem("userData", JSON.stringify(authResult.user));
         await AsyncStorage.removeItem("confirmationId");
 
         // Success feedback
@@ -281,8 +289,12 @@ export default function OTPVerificationScreen() {
           Vibration.vibrate(50);
         }
 
-        // Navigate to next screen
-        router.replace("/select-community");
+        // Navigate based on user state
+        const navigationRoute = UserService.getNavigationRoute(
+          authResult.user,
+          authResult.needsProfileCompletion,
+        );
+        router.replace(navigationRoute);
         return;
       } else {
         // No confirmation in memory - need to request new OTP

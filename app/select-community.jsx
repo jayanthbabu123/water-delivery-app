@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import {
+  Alert,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
@@ -12,45 +13,12 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Select from "../components/ui/Select";
-
-// Mock data - In a real app, this would come from an API
-const COMMUNITIES = [
-  { label: "Sunset Gardens", value: "sunset_gardens" },
-  { label: "Ocean View Apartments", value: "ocean_view" },
-  { label: "Mountain Heights", value: "mountain_heights" },
-  { label: "Riverside Residences", value: "riverside" },
-];
-
-const APARTMENTS = {
-  sunset_gardens: [
-    { label: "101", value: "101" },
-    { label: "102", value: "102" },
-    { label: "201", value: "201" },
-    { label: "202", value: "202" },
-  ],
-  ocean_view: [
-    { label: "A101", value: "A101" },
-    { label: "A102", value: "A102" },
-    { label: "B101", value: "B101" },
-    { label: "B102", value: "B102" },
-  ],
-  mountain_heights: [
-    { label: "1A", value: "1A" },
-    { label: "1B", value: "1B" },
-    { label: "2A", value: "2A" },
-    { label: "2B", value: "2B" },
-  ],
-  riverside: [
-    { label: "101", value: "101" },
-    { label: "102", value: "102" },
-    { label: "201", value: "201" },
-    { label: "202", value: "202" },
-  ],
-};
+import UserService from "../src/services/user";
+import CommunityService from "../src/services/community";
 
 export default function SelectCommunityScreen() {
   const [selectedCommunity, setSelectedCommunity] = useState("");
@@ -58,42 +26,110 @@ export default function SelectCommunityScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [errors, setErrors] = useState({});
-  const windowHeight = Dimensions.get('window').height;
+  const [loading, setLoading] = useState(false);
+  const [communities, setCommunities] = useState([]);
+  const [apartments, setApartments] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const windowHeight = Dimensions.get("window").height;
 
-  const validateForm = () => {
-    const newErrors = {};
-    if (!selectedCommunity) {
-      newErrors.community = "Please select a community";
+  // Load communities on component mount
+  React.useEffect(() => {
+    loadCommunities();
+  }, []);
+
+  // Load apartments when community is selected
+  React.useEffect(() => {
+    if (selectedCommunity) {
+      loadApartments(selectedCommunity);
+      setSelectedApartment(""); // Reset apartment selection
     }
-    if (!selectedApartment) {
-      newErrors.apartment = "Please select an apartment";
+  }, [selectedCommunity]);
+
+  const loadCommunities = async () => {
+    try {
+      setLoadingData(true);
+      let communitiesData = await CommunityService.getCommunities();
+
+      // If no communities exist, create initial communities
+      if (communitiesData.length === 0) {
+        console.log("No communities found, creating initial data...");
+        await CommunityService.createInitialCommunities();
+        communitiesData = await CommunityService.getCommunities();
+        console.log("Initial communities created and loaded");
+      }
+
+      const formattedCommunities =
+        CommunityService.formatCommunitiesForSelect(communitiesData);
+      setCommunities(formattedCommunities);
+    } catch (error) {
+      Alert.alert("Error", "Failed to load communities. Please try again.");
+      console.error("Error loading communities:", error);
+    } finally {
+      setLoadingData(false);
     }
-    if (!name.trim()) {
-      newErrors.name = "Name is required";
+  };
+
+  const loadApartments = async (communityId) => {
+    try {
+      const apartmentsData = await CommunityService.getApartments(communityId);
+      const formattedApartments =
+        CommunityService.formatApartmentsForSelect(apartmentsData);
+      setApartments(formattedApartments);
+    } catch (error) {
+      Alert.alert("Error", "Failed to load apartments. Please try again.");
+      console.error("Error loading apartments:", error);
     }
-    if (!email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = "Please enter a valid email";
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
   };
 
   const handleContinue = async () => {
-    if (validateForm()) {
-      try {
-        // Save community selection and user information to storage
-        await AsyncStorage.setItem("selectedCommunity", selectedCommunity);
-        await AsyncStorage.setItem("selectedApartment", selectedApartment);
-        await AsyncStorage.setItem("userName", name);
-        await AsyncStorage.setItem("userEmail", email);
+    try {
+      setLoading(true);
 
-        // Navigate to role selection
-        router.push("/role-select");
-      } catch (error) {
-        console.error("Error saving selection:", error);
+      // Validate profile data
+      const profileData = {
+        name: name.trim(),
+        email: email.trim(),
+        communityId: selectedCommunity,
+        apartmentNumber: selectedApartment,
+      };
+
+      const validation = UserService.validateProfileData(profileData);
+      if (!validation.isValid) {
+        Alert.alert("Validation Error", validation.errors.join("\n"));
+        setLoading(false);
+        return;
       }
+
+      // Get current user ID from AsyncStorage
+      const userToken = await AsyncStorage.getItem("userToken");
+      if (!userToken) {
+        Alert.alert("Error", "User session not found. Please login again.");
+        router.replace("/login");
+        return;
+      }
+
+      // Update user profile in Firestore
+      await UserService.updateUserProfile(userToken, profileData);
+
+      // Update local storage
+      const userData = await AsyncStorage.getItem("userData");
+      if (userData) {
+        const user = JSON.parse(userData);
+        user.profile = {
+          ...user.profile,
+          ...profileData,
+          isProfileComplete: true,
+        };
+        await AsyncStorage.setItem("userData", JSON.stringify(user));
+      }
+
+      // Navigate to customer dashboard
+      router.replace("/(customer)/(tabs)/home");
+    } catch (error) {
+      Alert.alert("Error", "Failed to save profile. Please try again.");
+      console.error("Error saving profile:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -120,8 +156,16 @@ export default function SelectCommunityScreen() {
           showsVerticalScrollIndicator={false}
         >
           <Text style={styles.subtitle}>
-          Please provide your details to help us serve you better
+            Please provide your details to help us serve you better
           </Text>
+
+          {loadingData && (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>
+                Setting up communities data...
+              </Text>
+            </View>
+          )}
 
           <View style={styles.formContainer}>
             {/* Community Selection */}
@@ -129,11 +173,16 @@ export default function SelectCommunityScreen() {
               <Text style={styles.inputLabel}>Select Community</Text>
               <Select
                 value={selectedCommunity}
-                options={COMMUNITIES}
+                options={communities}
                 onSelect={setSelectedCommunity}
-                placeholder="Choose your community"
+                placeholder={
+                  loadingData
+                    ? "Loading communities..."
+                    : "Choose your community"
+                }
                 error={errors.community}
                 searchable
+                disabled={loadingData}
               />
             </View>
 
@@ -142,11 +191,15 @@ export default function SelectCommunityScreen() {
               <Text style={styles.inputLabel}>Select Apartment</Text>
               <Select
                 value={selectedApartment}
-                options={APARTMENTS[selectedCommunity] || []}
+                options={apartments}
                 onSelect={setSelectedApartment}
-                placeholder="Choose your apartment"
+                placeholder={
+                  !selectedCommunity
+                    ? "Select community first"
+                    : "Choose your apartment"
+                }
                 error={errors.apartment}
-                disabled={!selectedCommunity}
+                disabled={!selectedCommunity || loadingData}
               />
             </View>
 
@@ -154,7 +207,11 @@ export default function SelectCommunityScreen() {
             <View style={[styles.inputGroup, styles.nameInputGroup]}>
               <Text style={styles.inputLabel}>Full Name</Text>
               <TextInput
-                style={[styles.input, styles.nameInput, errors.name && styles.inputError]}
+                style={[
+                  styles.input,
+                  styles.nameInput,
+                  errors.name && styles.inputError,
+                ]}
                 value={name}
                 onChangeText={setName}
                 placeholder="Enter your full name"
@@ -169,7 +226,11 @@ export default function SelectCommunityScreen() {
             <View style={[styles.inputGroup, styles.emailInputGroup]}>
               <Text style={styles.inputLabel}>Email Address</Text>
               <TextInput
-                style={[styles.input, styles.emailInput, errors.email && styles.inputError]}
+                style={[
+                  styles.input,
+                  styles.emailInput,
+                  errors.email && styles.inputError,
+                ]}
                 value={email}
                 onChangeText={setEmail}
                 placeholder="Enter your email address"
@@ -185,10 +246,16 @@ export default function SelectCommunityScreen() {
 
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={styles.continueButton}
+              style={[
+                styles.continueButton,
+                (loading || loadingData) && styles.continueButtonDisabled,
+              ]}
               onPress={handleContinue}
+              disabled={loading || loadingData}
             >
-              <Text style={styles.continueButtonText}>Continue</Text>
+              <Text style={styles.continueButtonText}>
+                {loading ? "Saving..." : "Continue"}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -285,13 +352,32 @@ const styles = StyleSheet.create({
   },
   continueButton: {
     backgroundColor: "#007AFF",
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
+    marginTop: 20,
+  },
+  continueButtonDisabled: {
+    backgroundColor: "#BDBDBD",
   },
   continueButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: "center",
+    backgroundColor: "#F0F8FF",
+    marginHorizontal: 16,
+    marginVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E3F2FD",
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#1976D2",
+    fontWeight: "500",
   },
 });

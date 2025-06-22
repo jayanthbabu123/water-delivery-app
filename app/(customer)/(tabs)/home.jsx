@@ -3,6 +3,7 @@ import {
   MaterialCommunityIcons,
   FontAwesome,
 } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
@@ -14,13 +15,20 @@ import {
   View,
   Animated,
   Platform,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ScreenHeader from "../../../components/ui/ScreenHeader";
+import UserService from "../../../src/services/user";
+import CommunityService from "../../../src/services/community";
 
 export default function CustomerHomeScreen() {
   const [greeting, setGreeting] = useState("");
-  const [userName, setUserName] = useState("John Doe");
+  const [userName, setUserName] = useState("Loading...");
+  const [userLocation, setUserLocation] = useState("Loading location...");
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const fadeAnim = React.useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
@@ -32,6 +40,7 @@ export default function CustomerHomeScreen() {
     };
 
     setGreeting(getTimeBasedGreeting());
+    loadUserData();
 
     // Fade in animation with a slight delay for sections
     Animated.timing(fadeAnim, {
@@ -39,10 +48,75 @@ export default function CustomerHomeScreen() {
       duration: 800,
       useNativeDriver: true,
     }).start();
-
-    // Fetch user data here in a real app
-    // For now we'll use a mock name
   }, []);
+
+  const formatUserName = (name) => {
+    if (!name || name.trim() === "") return "Welcome";
+
+    // Convert to title case
+    return name
+      .trim()
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ");
+  };
+
+  const loadUserData = async () => {
+    try {
+      setLoading(true);
+
+      // Get user data from AsyncStorage
+      const userToken = await AsyncStorage.getItem("userToken");
+      const storedUserData = await AsyncStorage.getItem("userData");
+
+      if (userToken && storedUserData) {
+        const user = JSON.parse(storedUserData);
+        setUserData(user);
+
+        // Set user name with proper formatting
+        const formattedName = formatUserName(user.profile?.name);
+        setUserName(formattedName);
+
+        // Load community details for location
+        if (user.profile?.communityId && user.profile?.apartmentNumber) {
+          try {
+            const community = await CommunityService.getCommunityById(
+              user.profile.communityId,
+            );
+            if (community) {
+              setUserLocation(
+                `${community.name}, Unit ${user.profile.apartmentNumber}`,
+              );
+            } else {
+              setUserLocation(
+                `Community ${user.profile.communityId}, Unit ${user.profile.apartmentNumber}`,
+              );
+            }
+          } catch (error) {
+            console.error("Error loading community:", error);
+            setUserLocation(`Unit ${user.profile.apartmentNumber}`);
+          }
+        } else {
+          setUserLocation("Location not set");
+        }
+      } else {
+        // If no user data, redirect to login
+        router.replace("/login");
+      }
+    } catch (error) {
+      console.error("Error loading user data:", error);
+      setUserName("Guest");
+      setUserLocation("Location unavailable");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadUserData();
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
@@ -51,18 +125,33 @@ export default function CustomerHomeScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollViewContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
       >
         <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-          <View>
-            <Text style={styles.greeting}>{greeting},</Text>
-            <Text style={styles.name}>{userName}</Text>
+          <View style={styles.userInfoContainer}>
+            <View style={styles.greetingContainer}>
+              <Text style={styles.greeting}>{greeting}</Text>
+              <View style={styles.waveIcon}>
+                <Text style={styles.waveEmoji}>👋</Text>
+              </View>
+            </View>
+            <Text style={styles.name}>{loading ? "Loading..." : userName}</Text>
+            {/* <View style={styles.userBadge}>
+              <View style={styles.statusDot} />
+              <Text style={styles.statusText}>Online</Text>
+            </View> */}
           </View>
           <TouchableOpacity
             style={styles.profileButton}
             onPress={() => router.push("/(customer)/(tabs)/profile")}
           >
             <View style={styles.profileImage}>
-              <FontAwesome name="user" size={28} color="#1976D2" />
+              <View style={styles.profileImageInner}>
+                <FontAwesome name="user" size={24} color="#FFFFFF" />
+              </View>
+              <View style={styles.onlineIndicator} />
             </View>
           </TouchableOpacity>
         </Animated.View>
@@ -90,9 +179,7 @@ export default function CustomerHomeScreen() {
             </View>
             <View style={styles.locationText}>
               <Text style={styles.locationTitle}>Current Location</Text>
-              <Text style={styles.locationAddress}>
-                Sunset Gardens, Unit 101
-              </Text>
+              <Text style={styles.locationAddress}>{userLocation}</Text>
             </View>
           </View>
           {/* <TouchableOpacity style={styles.changeLocationButton}>
@@ -322,37 +409,106 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
+    padding: 24,
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    borderBottomColor: "#F5F5F5",
     marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 0,
+  },
+  userInfoContainer: {
+    flex: 1,
+    paddingRight: 16,
+  },
+  greetingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
   },
   greeting: {
-    fontSize: 16,
+    fontSize: 18,
     color: "#1976D2",
-    fontWeight: "500",
+    fontWeight: "600",
+    marginRight: 8,
+  },
+  waveIcon: {
+    marginLeft: 4,
+  },
+  waveEmoji: {
+    fontSize: 18,
   },
   name: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-    marginTop: 4,
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1A1A1A",
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  userBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8F5E8",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: "flex-start",
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#4CAF50",
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 12,
+    color: "#2E7D32",
+    fontWeight: "600",
   },
   profileButton: {
-    padding: 0,
-    borderRadius: 20,
-    overflow: "hidden",
+    padding: 4,
+    borderRadius: 30,
+    shadowColor: "#1976D2",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
   profileImage: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    borderWidth: 2,
-    borderColor: "#E3F2FD",
-    overflow: "hidden",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    position: "relative",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 0,
+  },
+  profileImageInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#1976D2",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E3F2FD",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+  },
+  onlineIndicator: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#4CAF50",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
   },
   locationCard: {
     flexDirection: "row",
