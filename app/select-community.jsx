@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Select from "../components/ui/Select";
 import UserService from "../src/services/user";
 import CommunityService from "../src/services/community";
+import { AuthService } from "../src/services/authService";
 
 export default function SelectCommunityScreen() {
   const [selectedCommunity, setSelectedCommunity] = useState("");
@@ -100,8 +101,8 @@ export default function SelectCommunityScreen() {
         return;
       }
 
-      // Get current user ID from AsyncStorage
-      const userToken = await AsyncStorage.getItem("userToken");
+      // Get current user ID from AuthService
+      const userToken = await AuthService.getCurrentUserToken();
       if (!userToken) {
         Alert.alert("Error", "User session not found. Please login again.");
         router.replace("/login");
@@ -111,20 +112,17 @@ export default function SelectCommunityScreen() {
       // Update user profile in Firestore
       await UserService.updateUserProfile(userToken, profileData);
 
-      // Update local storage
-      const userData = await AsyncStorage.getItem("userData");
-      if (userData) {
-        const user = JSON.parse(userData);
-        user.profile = {
-          ...user.profile,
-          ...profileData,
-          isProfileComplete: true,
-        };
-        await AsyncStorage.setItem("userData", JSON.stringify(user));
-      }
+      // Update community selection in AuthService
+      await AuthService.updateCommunitySelection(selectedCommunity);
 
-      // Navigate to customer dashboard
-      router.replace("/(customer)/(tabs)/home");
+      // Update profile completion status in AuthService
+      await AuthService.updateProfileCompletion(profileData);
+
+      // Get updated auth state to determine redirect
+      const authState = await AuthService.getAuthState();
+
+      // Navigate based on auth state
+      router.replace(authState.redirectTo);
     } catch (error) {
       Alert.alert("Error", "Failed to save profile. Please try again.");
       console.error("Error saving profile:", error);

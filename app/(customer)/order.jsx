@@ -1,212 +1,732 @@
-import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
   Alert,
+  Platform,
+  ActivityIndicator,
+  TextInput,
+  Modal,
 } from "react-native";
+import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export default function OrderScreen() {
-  const params = useLocalSearchParams();
+import { ProductService } from "../../src/services/product";
+import { OrderService } from "../../src/services/order";
+import { CommunityService } from "../../src/services/community";
+
+export default function PlaceOrderScreen() {
+  // State management
+  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("card1");
+  const [userData, setUserData] = useState(null);
+  const [deliveryAddress, setDeliveryAddress] = useState(null);
+  const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
+  const [tempAddress, setTempAddress] = useState({
+    contactName: "",
+    contactPhone: "",
+    specialInstructions: "",
+    isTemporary: false,
+  });
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(0);
+  const [orderNotes, setOrderNotes] = useState("");
+  const [placingOrder, setPlacingOrder] = useState(false);
 
-  // Mock payment methods (in a real app, fetch from API/storage)
-  const paymentMethods = [
-    {
-      id: "card1",
-      name: "Credit Card",
-      last4: "4242",
-      type: "visa",
-    },
-    {
-      id: "card2",
-      name: "Debit Card",
-      last4: "5678",
-      type: "mastercard",
-    },
-  ];
+  // Price calculations
+  const [subtotal, setSubtotal] = useState(0);
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const [totalAmount, setTotalAmount] = useState(0);
 
-  // Mock product data (in a real app, fetch from API)
-  const product = {
-    id: "prod_1",
-    name: "20L Water Bottle",
-    price: 20.0,
-    image: "https://example.com/water-bottle.jpg",
-    description: "Pure mineral water in a reusable 20L bottle.",
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  useEffect(() => {
+    if (selectedProduct) {
+      calculatePrices();
+    }
+  }, [selectedProduct, quantity]);
+
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      console.log("🚀 Loading initial data...");
+
+      // Load user data
+      const storedUserData = await AsyncStorage.getItem("userData");
+      if (storedUserData) {
+        const user = JSON.parse(storedUserData);
+        console.log("👤 User data loaded:", user);
+        setUserData(user);
+        await loadDeliveryAddress(user);
+      } else {
+        console.log("❌ No user data found");
+        Alert.alert("Error", "Please login first");
+        router.replace("/login");
+        return;
+      }
+
+      // Load products
+      await loadProducts();
+
+      // Load payment methods
+      loadPaymentMethods();
+    } catch (error) {
+      console.error("❌ Error loading initial data:", error);
+      Alert.alert("Error", "Failed to load order data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleIncrease = () => {
-    setQuantity(quantity + 1);
+  const loadProducts = async () => {
+    try {
+      console.log("📦 Loading products...");
+      let productsData = await ProductService.getProducts();
+      console.log("📦 Products loaded:", productsData.length);
+
+      // If no products exist, create initial products
+      if (productsData.length === 0) {
+        console.log("📦 No products found, creating initial products...");
+        await ProductService.createInitialProducts();
+        productsData = await ProductService.getProducts();
+        console.log("📦 Initial products created:", productsData.length);
+      }
+
+      setProducts(productsData);
+      console.log("📦 Products set in state:", productsData);
+
+      // Set default selected product (first one)
+      if (productsData.length > 0) {
+        setSelectedProduct(productsData[0]);
+        console.log("📦 Default product selected:", productsData[0].name);
+      }
+    } catch (error) {
+      console.error("❌ Error loading products:", error);
+      Alert.alert("Error", "Failed to load products. Please try again.");
+    }
   };
 
-  const handleDecrease = () => {
+  const loadDeliveryAddress = async (user) => {
+    try {
+      if (user.profile?.communityId && user.profile?.apartmentNumber) {
+        const community = await CommunityService.getCommunityById(
+          user.profile.communityId,
+        );
+
+        if (community) {
+          setDeliveryAddress({
+            communityId: community.id,
+            communityName: community.name,
+            apartmentNumber: user.profile.apartmentNumber,
+            fullAddress: `${community.name}, ${community.address.street}, ${community.address.city}, ${community.address.state} - ${community.address.pincode}`,
+            contactName: user.profile.name || "",
+            contactPhone: user.phoneNumber || "",
+            specialInstructions: "",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error loading delivery address:", error);
+    }
+  };
+
+  const loadPaymentMethods = () => {
+    // Mock payment methods - in real app, load from user's saved payment methods
+    const mockPaymentMethods = [
+      {
+        id: 1,
+        cardType: "Visa",
+        lastFour: "4242",
+        expiry: "12/25",
+        isDefault: true,
+      },
+      {
+        id: 2,
+        cardType: "Mastercard",
+        lastFour: "5678",
+        expiry: "10/26",
+        isDefault: false,
+      },
+    ];
+    setPaymentMethods(mockPaymentMethods);
+  };
+
+  const calculatePrices = () => {
+    if (!selectedProduct) return;
+
+    const productSubtotal = ProductService.calculateTotalPrice(
+      selectedProduct,
+      quantity,
+    );
+    const productDeliveryFee = ProductService.calculateDeliveryFee(
+      productSubtotal,
+      quantity,
+    );
+    const total = productSubtotal + productDeliveryFee;
+
+    setSubtotal(productSubtotal);
+    setDeliveryFee(productDeliveryFee);
+    setTotalAmount(total);
+  };
+
+  const calculateEstimatedDelivery = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    const options = { weekday: "short", month: "short", day: "numeric" };
+    const today = now.toLocaleDateString("en-US", options);
+
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowFormatted = tomorrow.toLocaleDateString("en-US", options);
+
+    if (hour >= 9 && hour < 17) {
+      return `${today} by 6:00 PM`;
+    } else {
+      return `${tomorrowFormatted} by 12:00 PM`;
+    }
+  };
+
+  const increaseQuantity = () => {
+    if (
+      selectedProduct &&
+      quantity < selectedProduct.pricing.maxOrderQuantity
+    ) {
+      setQuantity(quantity + 1);
+    }
+  };
+
+  const decreaseQuantity = () => {
     if (quantity > 1) {
       setQuantity(quantity - 1);
     }
   };
 
-  const handlePaymentSelect = (id) => {
-    setSelectedPaymentMethod(id);
+  const handleProductSelect = (product) => {
+    setSelectedProduct(product);
+    setQuantity(1); // Reset quantity when changing product
   };
 
-  const handlePlaceOrder = () => {
-    Alert.alert("Confirm Order", `Place order for ${quantity} water bottles?`, [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Confirm",
-        onPress: () => {
-          // In a real app, send order to backend
-          // Then navigate to success or order details
-          router.push("/(customer)/(tabs)/orders");
+  const handleAddressChange = () => {
+    console.log("📍 handleAddressChange called");
+    console.log("📍 Current modal state:", isAddressModalVisible);
+    console.log("📍 Current delivery address:", deliveryAddress);
+    console.log("📍 Current user data:", userData);
+
+    setTempAddress({
+      contactName:
+        deliveryAddress?.contactName || userData?.profile?.name || "",
+      contactPhone:
+        deliveryAddress?.contactPhone || userData?.phoneNumber || "",
+      specialInstructions: deliveryAddress?.specialInstructions || "",
+      isTemporary: false,
+    });
+
+    setIsAddressModalVisible(true);
+    console.log("📍 Modal should be visible now");
+  };
+
+  const saveAddressChanges = () => {
+    console.log("💾 Saving address changes:", tempAddress);
+
+    // Always update address for this order (temporary)
+    setDeliveryAddress({
+      ...deliveryAddress,
+      contactName: tempAddress.contactName,
+      contactPhone: tempAddress.contactPhone,
+      specialInstructions: tempAddress.specialInstructions,
+    });
+
+    setIsAddressModalVisible(false);
+    console.log("💾 Address updated and modal closed");
+  };
+
+  const handlePlaceOrder = async () => {
+    try {
+      // Validate order data
+      if (!selectedProduct) {
+        Alert.alert("Error", "Please select a product");
+        return;
+      }
+
+      if (!deliveryAddress) {
+        Alert.alert("Error", "Delivery address is required");
+        return;
+      }
+
+      if (paymentMethods.length === 0) {
+        Alert.alert("Error", "Please add a payment method");
+        return;
+      }
+
+      setPlacingOrder(true);
+
+      // Check product availability
+      const availability = await ProductService.checkAvailability(
+        selectedProduct.id,
+        quantity,
+      );
+      if (!availability.available) {
+        Alert.alert("Product Unavailable", availability.reason);
+        setPlacingOrder(false);
+        return;
+      }
+
+      // Prepare order data
+      const orderData = {
+        userId: userData.userId,
+        communityId: userData.profile.communityId,
+        products: [
+          {
+            productId: selectedProduct.id,
+            name: selectedProduct.name,
+            quantity: quantity,
+            unitPrice: selectedProduct.pricing.basePrice,
+            totalPrice: subtotal,
+            specifications: selectedProduct.specifications,
+          },
+        ],
+        subtotal: subtotal,
+        deliveryFee: deliveryFee,
+        discount: 0,
+        tax: 0,
+        totalAmount: totalAmount,
+        deliveryAddress: deliveryAddress,
+        paymentMethod: {
+          type: "card",
+          cardId: paymentMethods[selectedPaymentMethod]?.id,
+          cardLastFour: paymentMethods[selectedPaymentMethod]?.lastFour,
+          cardType: paymentMethods[selectedPaymentMethod]?.cardType,
         },
-      },
-    ]);
+        deliverySchedule: {
+          preferredTime: "asap",
+          estimatedDelivery: OrderService.calculateEstimatedDelivery(),
+        },
+        orderNotes: orderNotes,
+      };
+
+      // Validate order data
+      const validation = OrderService.validateOrderData(orderData);
+      if (!validation.isValid) {
+        Alert.alert("Order Validation Failed", validation.errors.join("\n"));
+        setPlacingOrder(false);
+        return;
+      }
+
+      // Create order
+      console.log("📝 Creating order with data:", orderData);
+      const result = await OrderService.createOrder(orderData);
+      console.log("📝 Order creation result:", result);
+
+      if (result.success) {
+        Alert.alert(
+          "Order Placed Successfully!",
+          `Your order #${result.orderId} has been placed and will be delivered by ${calculateEstimatedDelivery()}.`,
+          [
+            {
+              text: "View Orders",
+              onPress: () => router.push("/(customer)/(tabs)/orders"),
+            },
+            {
+              text: "Continue Shopping",
+              onPress: () => router.push("/(customer)/(tabs)/home"),
+              style: "cancel",
+            },
+          ],
+        );
+      }
+    } catch (error) {
+      console.error("Error placing order:", error);
+      Alert.alert(
+        "Order Failed",
+        "Unable to place your order. Please try again.",
+      );
+    } finally {
+      setPlacingOrder(false);
+    }
   };
 
-  const handleAddPayment = () => {
-    router.push("/(customer)/add-payment");
-  };
-
-  // Calculate total
-  const subtotal = product.price * quantity;
-  const deliveryFee = 5.0;
-  const total = subtotal + deliveryFee;
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1976D2" />
+          <Text style={styles.loadingText}>Loading order details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+      <StatusBar style="dark" />
+
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
           style={styles.backButton}
+          onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
+          <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Place Order</Text>
-        <View style={{ width: 24 }} />
+        <View style={styles.placeholderView} />
       </View>
 
-      <ScrollView style={styles.content}>
-        <View style={styles.productCard}>
-          <View style={styles.productImageContainer}>
-            <Ionicons name="water" size={60} color="#2196F3" />
-          </View>
-          <View style={styles.productInfo}>
-            <Text style={styles.productName}>{product.name}</Text>
-            <Text style={styles.productPrice}>${product.price.toFixed(2)}</Text>
-            <Text style={styles.productDescription}>{product.description}</Text>
-          </View>
-        </View>
-
-        <View style={styles.quantityContainer}>
-          <Text style={styles.sectionTitle}>Quantity</Text>
-          <View style={styles.quantityControls}>
-            <TouchableOpacity
-              style={styles.quantityButton}
-              onPress={handleDecrease}
-              disabled={quantity <= 1}
-            >
-              <Ionicons
-                name="remove"
-                size={24}
-                color={quantity <= 1 ? "#ccc" : "#1976D2"}
-              />
-            </TouchableOpacity>
-            <Text style={styles.quantityText}>{quantity}</Text>
-            <TouchableOpacity
-              style={styles.quantityButton}
-              onPress={handleIncrease}
-            >
-              <Ionicons name="add" size={24} color="#1976D2" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Delivery Address */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Delivery Address</Text>
-          <View style={styles.addressCard}>
-            <Ionicons name="location" size={24} color="#1976D2" />
-            <View style={styles.addressInfo}>
-              <Text style={styles.addressTitle}>Home</Text>
-              <Text style={styles.addressText}>Sunset Gardens, Unit 101</Text>
+          <TouchableOpacity
+            style={styles.addressContainer}
+            onPress={() => {
+              console.log("📍 Address change button pressed");
+              handleAddressChange();
+            }}
+          >
+            <View style={styles.addressIconContainer}>
+              <Ionicons name="location" size={20} color="#1976D2" />
             </View>
-            <TouchableOpacity style={styles.changeButton}>
+            <View style={styles.addressDetails}>
+              <Text style={styles.addressName}>
+                {deliveryAddress?.contactName}
+              </Text>
+              <Text style={styles.addressText}>
+                {deliveryAddress?.fullAddress}
+              </Text>
+              <Text style={styles.apartmentText}>
+                Unit: {deliveryAddress?.apartmentNumber}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.changeButton}
+              onPress={() => {
+                console.log("📍 Change button pressed");
+                handleAddressChange();
+              }}
+            >
               <Text style={styles.changeButtonText}>Change</Text>
             </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
         </View>
 
+        {/* Product Selection */}
         <View style={styles.section}>
-          <View style={styles.paymentHeader}>
-            <Text style={styles.sectionTitle}>Payment Method</Text>
-            <TouchableOpacity onPress={handleAddPayment}>
-              <Text style={styles.addPaymentText}>+ Add New</Text>
-            </TouchableOpacity>
-          </View>
-
-          {paymentMethods.map((method) => (
+          <Text style={styles.sectionTitle}>Select Product</Text>
+          {products.map((product) => (
             <TouchableOpacity
-              key={method.id}
+              key={product.id}
               style={[
-                styles.paymentCard,
-                selectedPaymentMethod === method.id && styles.selectedPayment,
+                styles.productCard,
+                selectedProduct?.id === product.id &&
+                  styles.selectedProductCard,
               ]}
-              onPress={() => handlePaymentSelect(method.id)}
+              onPress={() => handleProductSelect(product)}
             >
-              <Ionicons
-                name={method.type === "visa" ? "card" : "card-outline"}
-                size={24}
-                color="#1976D2"
-              />
-              <View style={styles.paymentInfo}>
-                <Text style={styles.paymentTitle}>{method.name}</Text>
-                <Text style={styles.paymentText}>Ending in {method.last4}</Text>
+              <View style={styles.productImageContainer}>
+                <Ionicons
+                  name="water"
+                  size={40}
+                  color={
+                    selectedProduct?.id === product.id ? "#1976D2" : "#666"
+                  }
+                />
               </View>
-              <View style={styles.radioButton}>
-                {selectedPaymentMethod === method.id && (
-                  <View style={styles.radioButtonInner} />
-                )}
+              <View style={styles.productInfo}>
+                <Text style={styles.productName}>{product.name}</Text>
+                <Text style={styles.productDescription} numberOfLines={2}>
+                  {product.description}
+                </Text>
+                <Text style={styles.productVolume}>
+                  {product.specifications.volume}
+                </Text>
+                <Text style={styles.productPrice}>
+                  ₹{product.pricing.basePrice}
+                </Text>
+              </View>
+              <View style={styles.productSelection}>
+                <View
+                  style={[
+                    styles.radioButton,
+                    selectedProduct?.id === product.id &&
+                      styles.radioButtonSelected,
+                  ]}
+                >
+                  {selectedProduct?.id === product.id && (
+                    <View style={styles.radioButtonInner} />
+                  )}
+                </View>
               </View>
             </TouchableOpacity>
           ))}
         </View>
 
-        <View style={styles.summarySection}>
-          <Text style={styles.sectionTitle}>Order Summary</Text>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
+        {/* Quantity Selection */}
+        {selectedProduct && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Quantity</Text>
+            <View style={styles.quantityContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.quantityButton,
+                  quantity <= 1 && styles.quantityButtonDisabled,
+                ]}
+                onPress={decreaseQuantity}
+                disabled={quantity <= 1}
+              >
+                <Ionicons
+                  name="remove"
+                  size={20}
+                  color={quantity <= 1 ? "#ccc" : "#333"}
+                />
+              </TouchableOpacity>
+
+              <Text style={styles.quantityText}>{quantity}</Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.quantityButton,
+                  quantity >= selectedProduct.pricing.maxOrderQuantity &&
+                    styles.quantityButtonDisabled,
+                ]}
+                onPress={increaseQuantity}
+                disabled={quantity >= selectedProduct.pricing.maxOrderQuantity}
+              >
+                <Ionicons
+                  name="add"
+                  size={20}
+                  color={
+                    quantity >= selectedProduct.pricing.maxOrderQuantity
+                      ? "#ccc"
+                      : "#333"
+                  }
+                />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.quantityNote}>
+              Max order: {selectedProduct.pricing.maxOrderQuantity} bottles
+            </Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Delivery Fee</Text>
-            <Text style={styles.summaryValue}>${deliveryFee.toFixed(2)}</Text>
-          </View>
-          <View style={[styles.summaryRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
+        )}
+
+        {/* Delivery Time */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Estimated Delivery</Text>
+          <View style={styles.deliveryTimeContainer}>
+            <View style={styles.deliveryTimeIconContainer}>
+              <Ionicons name="time-outline" size={20} color="#1976D2" />
+            </View>
+            <View style={styles.deliveryTimeDetails}>
+              <Text style={styles.deliveryTimeText}>
+                {calculateEstimatedDelivery()}
+              </Text>
+              <Text style={styles.deliveryTimeSubtext}>Standard delivery</Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.bottomSpace} />
+        {/* Payment Methods */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Payment Method</Text>
+          {paymentMethods.map((method, index) => (
+            <TouchableOpacity
+              key={method.id}
+              style={[
+                styles.paymentMethodCard,
+                selectedPaymentMethod === index &&
+                  styles.selectedPaymentMethodCard,
+              ]}
+              onPress={() => setSelectedPaymentMethod(index)}
+            >
+              <View style={styles.cardTypeContainer}>
+                {method.cardType === "Visa" ? (
+                  <FontAwesome5 name="cc-visa" size={24} color="#1A1F71" />
+                ) : (
+                  <FontAwesome5
+                    name="cc-mastercard"
+                    size={24}
+                    color="#EB001B"
+                  />
+                )}
+              </View>
+              <View style={styles.cardDetails}>
+                <Text style={styles.cardTypeText}>{method.cardType}</Text>
+                <Text style={styles.cardNumberText}>
+                  •••• {method.lastFour}
+                </Text>
+              </View>
+              <View style={styles.cardSelection}>
+                <View
+                  style={[
+                    styles.radioButton,
+                    selectedPaymentMethod === index &&
+                      styles.radioButtonSelected,
+                  ]}
+                >
+                  {selectedPaymentMethod === index && (
+                    <View style={styles.radioButtonInner} />
+                  )}
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity
+            style={styles.addPaymentButton}
+            onPress={() => router.push("/(customer)/add-payment")}
+          >
+            <Ionicons name="add-circle-outline" size={20} color="#1976D2" />
+            <Text style={styles.addPaymentText}>Add Payment Method</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Order Notes */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Order Notes (Optional)</Text>
+          <TextInput
+            style={styles.notesInput}
+            value={orderNotes}
+            onChangeText={setOrderNotes}
+            placeholder="Any special instructions for delivery..."
+            placeholderTextColor="#999"
+            multiline
+            numberOfLines={3}
+          />
+        </View>
+
+        {/* Order Summary */}
+        <View style={styles.summaryContainer}>
+          <Text style={styles.summaryTitle}>Order Summary</Text>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>
+              {selectedProduct?.name} x {quantity}
+            </Text>
+            <Text style={styles.summaryValue}>₹{subtotal.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Delivery Fee</Text>
+            <Text
+              style={[
+                styles.summaryValue,
+                deliveryFee === 0 && styles.freeText,
+              ]}
+            >
+              {deliveryFee === 0 ? "FREE" : `₹${deliveryFee.toFixed(2)}`}
+            </Text>
+          </View>
+
+          <View style={styles.summaryDivider} />
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total Amount</Text>
+            <Text style={styles.totalValue}>₹{totalAmount.toFixed(2)}</Text>
+          </View>
+        </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      {/* Place Order Button */}
+      <View style={styles.bottomContainer}>
         <TouchableOpacity
-          style={styles.placeOrderButton}
+          style={[
+            styles.placeOrderButton,
+            (placingOrder || !selectedProduct) &&
+              styles.placeOrderButtonDisabled,
+          ]}
           onPress={handlePlaceOrder}
+          disabled={placingOrder || !selectedProduct}
         >
-          <Text style={styles.placeOrderText}>Place Order</Text>
+          {placingOrder ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.placeOrderButtonText}>
+              Place Order • ₹{totalAmount.toFixed(2)}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
+
+      {/* Address Change Modal */}
+      <Modal
+        visible={isAddressModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsAddressModalVisible(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                console.log("❌ Modal cancel pressed");
+                setIsAddressModalVisible(false);
+              }}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Delivery Details</Text>
+            <TouchableOpacity
+              onPress={() => {
+                console.log("💾 Modal save pressed");
+                saveAddressChanges();
+              }}
+            >
+              <Text style={styles.modalSaveText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <View style={styles.modalSection}>
+              <Text style={styles.modalSectionTitle}>Contact Information</Text>
+
+              <Text style={styles.inputLabel}>Contact Name</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={tempAddress.contactName}
+                onChangeText={(text) =>
+                  setTempAddress({ ...tempAddress, contactName: text })
+                }
+                placeholder="Enter contact name"
+              />
+
+              <Text style={styles.inputLabel}>Phone Number</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={tempAddress.contactPhone}
+                onChangeText={(text) =>
+                  setTempAddress({ ...tempAddress, contactPhone: text })
+                }
+                placeholder="Enter phone number"
+                keyboardType="phone-pad"
+              />
+
+              <Text style={styles.inputLabel}>Special Instructions</Text>
+              <TextInput
+                style={[styles.modalInput, styles.textArea]}
+                value={tempAddress.specialInstructions}
+                onChangeText={(text) =>
+                  setTempAddress({ ...tempAddress, specialInstructions: text })
+                }
+                placeholder="Any special delivery instructions..."
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -214,199 +734,157 @@ export default function OrderScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#fff",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#666",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
-    backgroundColor: "#fff",
+    paddingHorizontal: 20,
+    paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomColor: "#f0f0f0",
   },
   backButton: {
-    padding: 8,
+    padding: 5,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: "#333",
   },
-  content: {
-    flex: 1,
-    padding: 16,
+  placeholderView: {
+    width: 24,
   },
-  productCard: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  productImageContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: "#E3F2FD",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  productImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-  },
-  productInfo: {
-    flex: 1,
-  },
-  productName: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1a1a1a",
-    marginBottom: 4,
-  },
-  productPrice: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1976D2",
-    marginBottom: 8,
-  },
-  productDescription: {
-    fontSize: 14,
-    color: "#666",
-    lineHeight: 20,
-  },
-  quantityContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1a1a1a",
-    marginBottom: 16,
-  },
-  quantityControls: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quantityButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  quantityText: {
-    fontSize: 18,
-    fontWeight: "600",
-    paddingHorizontal: 24,
+  scrollContent: {
+    paddingBottom: 120,
   },
   section: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    marginHorizontal: 20,
+    marginTop: 24,
   },
-  addressCard: {
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 12,
+  },
+  addressContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
+    padding: 16,
+    backgroundColor: "#f8f8f8",
+    borderRadius: 12,
   },
-  addressInfo: {
+  addressIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(25, 118, 210, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addressDetails: {
     flex: 1,
     marginLeft: 12,
   },
-  addressTitle: {
-    fontSize: 16,
+  addressName: {
+    fontSize: 14,
     fontWeight: "600",
-    color: "#1a1a1a",
-    marginBottom: 4,
+    color: "#333",
+    marginBottom: 2,
   },
   addressText: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#666",
+    marginBottom: 2,
+  },
+  apartmentText: {
+    fontSize: 12,
+    color: "#888",
   },
   changeButton: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 4,
-    backgroundColor: "#E3F2FD",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(25, 118, 210, 0.08)",
+    borderRadius: 14,
   },
   changeButtonText: {
     fontSize: 12,
     color: "#1976D2",
-    fontWeight: "600",
+    fontWeight: "500",
   },
-  paymentHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  addPaymentText: {
-    fontSize: 14,
-    color: "#1976D2",
-    fontWeight: "600",
-  },
-  paymentCard: {
+  productCard: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    borderRadius: 8,
     marginBottom: 12,
+    padding: 16,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
   },
-  selectedPayment: {
+  selectedProductCard: {
     borderColor: "#1976D2",
-    backgroundColor: "#E3F2FD",
+    backgroundColor: "rgba(25, 118, 210, 0.05)",
   },
-  paymentInfo: {
+  productImageContainer: {
+    width: 60,
+    height: 60,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(25, 118, 210, 0.1)",
+    borderRadius: 8,
+  },
+  productInfo: {
     flex: 1,
     marginLeft: 12,
   },
-  paymentTitle: {
-    fontSize: 15,
+  productName: {
+    fontSize: 16,
     fontWeight: "600",
-    color: "#1a1a1a",
-    marginBottom: 2,
+    color: "#333",
+    marginBottom: 4,
   },
-  paymentText: {
-    fontSize: 13,
+  productDescription: {
+    fontSize: 12,
     color: "#666",
+    marginBottom: 4,
+  },
+  productVolume: {
+    fontSize: 12,
+    color: "#888",
+    marginBottom: 4,
+  },
+  productPrice: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1976D2",
+  },
+  productSelection: {
+    paddingLeft: 12,
   },
   radioButton: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: "#1976D2",
-    justifyContent: "center",
+    borderColor: "#ccc",
     alignItems: "center",
+    justifyContent: "center",
+  },
+  radioButtonSelected: {
+    borderColor: "#1976D2",
   },
   radioButtonInner: {
     width: 10,
@@ -414,21 +892,145 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: "#1976D2",
   },
-  summarySection: {
+  quantityContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  quantityButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f5f5f5",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  quantityButtonDisabled: {
+    backgroundColor: "#f9f9f9",
+    borderColor: "#f0f0f0",
+  },
+  quantityText: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginHorizontal: 20,
+    minWidth: 30,
+    textAlign: "center",
+  },
+  quantityNote: {
+    fontSize: 12,
+    color: "#888",
+    textAlign: "center",
+  },
+  deliveryTimeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    backgroundColor: "#f8f8f8",
+    borderRadius: 12,
+  },
+  deliveryTimeIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(25, 118, 210, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deliveryTimeDetails: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  deliveryTimeText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#333",
+  },
+  deliveryTimeSubtext: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 2,
+  },
+  paymentMethodCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    padding: 16,
     backgroundColor: "#fff",
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+  },
+  selectedPaymentMethodCard: {
+    borderColor: "#1976D2",
+    backgroundColor: "rgba(25, 118, 210, 0.05)",
+  },
+  cardTypeContainer: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardDetails: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  cardTypeText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#333",
+  },
+  cardNumberText: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 2,
+  },
+  cardSelection: {
+    paddingLeft: 12,
+  },
+  addPaymentButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: "rgba(25, 118, 210, 0.08)",
+    borderRadius: 12,
+  },
+  addPaymentText: {
+    fontSize: 14,
+    color: "#1976D2",
+    fontWeight: "500",
+    marginLeft: 8,
+  },
+  notesInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    textAlignVertical: "top",
+    minHeight: 80,
+  },
+  summaryContainer: {
+    marginHorizontal: 20,
+    marginTop: 24,
     padding: 16,
+    backgroundColor: "#f8f8f8",
+    borderRadius: 12,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
     marginBottom: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
   },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 8,
+    marginBottom: 8,
   },
   summaryLabel: {
     fontSize: 14,
@@ -436,52 +1038,124 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     fontSize: 14,
-    color: "#1a1a1a",
+    color: "#333",
     fontWeight: "500",
   },
+  freeText: {
+    color: "#4CAF50",
+    fontWeight: "600",
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: "#e0e0e0",
+    marginVertical: 12,
+  },
   totalRow: {
-    marginTop: 8,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   totalLabel: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: "#333",
   },
   totalValue: {
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "bold",
     color: "#1976D2",
   },
-  bottomSpace: {
-    height: 80,
-  },
-  footer: {
+  bottomContainer: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
+    padding: 20,
     backgroundColor: "#fff",
-    padding: 16,
     borderTopWidth: 1,
-    borderTopColor: "#eee",
-    elevation: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
+    borderTopColor: "#f0f0f0",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   placeOrderButton: {
     backgroundColor: "#1976D2",
     paddingVertical: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: "center",
+    justifyContent: "center",
   },
-  placeOrderText: {
+  placeOrderButtonDisabled: {
+    backgroundColor: "#BDBDBD",
+  },
+  placeOrderButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+  },
+  modalCancelText: {
+    fontSize: 16,
+    color: "#666",
+  },
+  modalSaveText: {
+    fontSize: 16,
+    color: "#1976D2",
+    fontWeight: "600",
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  modalSection: {
+    marginBottom: 24,
+  },
+  modalSectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#333",
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: "#fff",
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: "top",
   },
 });

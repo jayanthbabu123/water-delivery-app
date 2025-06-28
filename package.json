@@ -25,7 +25,9 @@
     "build:ultra": "npm run analyze && eas build -p android --profile apk-ultra",
     "analyze": "node ./scripts/analyze-bundle.js",
     "firebase:setup": "echo 'Please follow FIREBASE_SETUP.md for complete setup instructions'",
-    "validate:firebase": "node -e \"console.log('Firebase packages:', Object.keys(require('./package.json').dependencies).filter(key => key.includes('firebase')))\""
+    "validate:firebase": "node -e \"console.log('Firebase packages:', Object.keys(require('./package.json').dependencies).filter(key => key.includes('firebase')))\"",
+    "init:products": "node ./scripts/init-products.js",
+    "init:data": "npm run init:products"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
@@ -85,6 +87,7 @@
     "babel-plugin-module-resolver": "^5.0.2",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~9.2.0",
+    "firebase-admin": "^13.4.0",
     "jest": "^29.7.0",
     "jest-expo": "~53.0.7",
     "patch-package": "^8.0.0",

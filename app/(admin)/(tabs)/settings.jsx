@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AuthService } from "../../../src/services/authService";
 
 export default function AdminSettings() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -21,17 +22,10 @@ export default function AdminSettings() {
 
   const handleSignOut = async () => {
     try {
-      // Clear all relevant storage
-      await AsyncStorage.multiRemove([
-        "userToken",
-        "userRole",
-        "selectedCommunity",
-        "selectedApartment",
-        "userName",
-        "userEmail",
-      ]);
+      // Use enhanced AuthService to sign out
+      await AuthService.signOut();
 
-      // Navigate to login
+      // Navigate to login after successful logout
       router.replace("/login");
     } catch (error) {
       console.error("Error signing out:", error);

@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AuthService } from "../../src/services/authService";
 
 export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -31,14 +32,14 @@ export default function SettingsScreen() {
         text: "Sign Out",
         onPress: async () => {
           try {
-            // Clear authentication token
-            await AsyncStorage.removeItem("userToken");
-            await AsyncStorage.removeItem("userRole");
+            // Use enhanced AuthService to sign out
+            await AuthService.signOut();
 
-            // Navigate to login
+            // Navigate to login after successful logout
             router.replace("/login");
           } catch (error) {
             console.error("Error signing out:", error);
+            Alert.alert("Error", "Could not log out. Please try again.");
           }
         },
       },

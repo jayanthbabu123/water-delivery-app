@@ -16,9 +16,22 @@ export class UserService {
       }
 
       const userDoc = querySnapshot.docs[0];
+      const userData = userDoc.data();
+
+      // Ensure profile structure exists
+      if (!userData.profile) {
+        userData.profile = {
+          name: "",
+          email: "",
+          communityId: "",
+          apartmentNumber: "",
+          isProfileComplete: false,
+        };
+      }
+
       return {
         id: userDoc.id,
-        ...userDoc.data(),
+        ...userData,
       };
     } catch (error) {
       console.error("Error checking user existence:", error);
@@ -96,9 +109,22 @@ export class UserService {
         return null;
       }
 
+      const userData = userDoc.data();
+
+      // Ensure profile structure exists
+      if (!userData.profile) {
+        userData.profile = {
+          name: "",
+          email: "",
+          communityId: "",
+          apartmentNumber: "",
+          isProfileComplete: false,
+        };
+      }
+
       return {
         id: userDoc.id,
-        ...userDoc.data(),
+        ...userData,
       };
     } catch (error) {
       console.error("Error getting user:", error);
@@ -118,7 +144,8 @@ export class UserService {
         return {
           isNewUser: false,
           user: existingUser,
-          needsProfileCompletion: !existingUser.profile?.isProfileComplete,
+          needsProfileCompletion:
+            !existingUser.profile || !existingUser.profile.isProfileComplete,
         };
       } else {
         // New user - create account

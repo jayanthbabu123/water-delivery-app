@@ -1,64 +1,73 @@
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
+import { AuthService } from "../src/services/authService";
 
 export default function Index() {
-  const [isAuthenticated, setIsAuthenticated] = useState(null);
-  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
-  const [userRole, setUserRole] = useState(null);
+  const [authState, setAuthState] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Check if user is authenticated and has completed onboarding
-    const checkStatus = async () => {
+    // Check authentication status using enhanced AuthService
+    const checkAuthStatus = async () => {
       try {
-        const token = await AsyncStorage.getItem("userToken");
-        const communitySelected =
-          await AsyncStorage.getItem("selectedCommunity");
-        const role = await AsyncStorage.getItem("userRole");
+        setIsLoading(true);
+        setError(null);
 
-        setIsAuthenticated(!!token);
-        setHasCompletedOnboarding(!!communitySelected);
-        setUserRole(role);
+        const currentAuthState = await AuthService.initializeAuth();
+        console.log("Index.jsx - Auth State:", currentAuthState);
+
+        // Ensure we have a valid redirectTo path
+        if (!currentAuthState.redirectTo) {
+          console.warn("No redirectTo path found, defaulting to login");
+          currentAuthState.redirectTo = "/login";
+        }
+
+        setAuthState(currentAuthState);
       } catch (error) {
-        console.log("Error checking status:", error);
-        setIsAuthenticated(false);
-        setHasCompletedOnboarding(false);
-        setUserRole(null);
+        console.error("Error checking auth status:", error);
+        setError(error.message);
+        setAuthState({
+          isAuthenticated: false,
+          authState: AuthService.AUTH_STATES.UNAUTHENTICATED,
+          userData: null,
+          redirectTo: "/login",
+        });
       } finally {
         setIsLoading(false);
       }
     };
 
-    checkStatus();
+    checkAuthStatus();
   }, []);
 
   if (isLoading) {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#1976D2" />
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
-  // Determine the redirection path based on authentication, onboarding, and role
-  if (!isAuthenticated) {
-    return <Redirect href="/login" />;
-  } else if (isAuthenticated && !hasCompletedOnboarding) {
-    return <Redirect href="/select-community" />;
-  } else if (isAuthenticated && hasCompletedOnboarding && !userRole) {
-    return <Redirect href="/role-select" />;
-  } else if (userRole === "customer") {
-    return <Redirect href="/(customer)/(tabs)/home" />;
-  } else if (userRole === "admin") {
-    return <Redirect href="/(admin)/(tabs)/dashboard" />;
-  } else if (userRole === "delivery") {
-    return <Redirect href="/(delivery)/(tabs)/assigned" />;
-  } else {
-    // Fallback to role selection if role is invalid
-    return <Redirect href="/role-select" />;
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>Error: {error}</Text>
+        <Text style={styles.errorText}>Redirecting to login...</Text>
+      </View>
+    );
   }
+
+  if (!authState || !authState.redirectTo) {
+    console.warn("No auth state or redirectTo, defaulting to login");
+    return <Redirect href="/login" />;
+  }
+
+  console.log("Index.jsx - Redirecting to:", authState.redirectTo);
+  // Redirect based on the determined auth state
+  return <Redirect href={authState.redirectTo} />;
 }
 
 const styles = StyleSheet.create({
@@ -67,5 +76,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#fff",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#666",
+  },
+  errorText: {
+    fontSize: 14,
+    color: "#F44336",
+    textAlign: "center",
+    marginHorizontal: 20,
+    marginVertical: 8,
   },
 });

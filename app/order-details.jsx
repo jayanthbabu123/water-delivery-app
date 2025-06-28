@@ -16,11 +16,11 @@ import ScreenHeader from "../components/ui/ScreenHeader";
 
 // Mock data for orders
 const ORDERS_DATA = {
-  "1": {
+  1: {
     id: "1",
     date: "Today, 2:30 PM",
     status: "Delivered",
-    items: [{ name: "5-gallon bottles", quantity: 2, price: 6.00 }],
+    items: [{ name: "5-gallon bottles", quantity: 2, price: 6.0 }],
     price: "$12.00",
     deliveryAddress: "123 Main St, Apt 101, San Francisco, CA 94105",
     paymentMethod: "Visa ending in 4242",
@@ -29,11 +29,11 @@ const ORDERS_DATA = {
     estimatedDelivery: "Delivered today at 2:30 PM",
     notes: "Leave at the door",
   },
-  "2": {
+  2: {
     id: "2",
     date: "Yesterday, 10:15 AM",
     status: "Delivered",
-    items: [{ name: "5-gallon bottle", quantity: 1, price: 6.00 }],
+    items: [{ name: "5-gallon bottle", quantity: 1, price: 6.0 }],
     price: "$6.00",
     deliveryAddress: "123 Main St, Apt 101, San Francisco, CA 94105",
     paymentMethod: "Visa ending in 4242",
@@ -42,11 +42,11 @@ const ORDERS_DATA = {
     estimatedDelivery: "Delivered yesterday at 10:15 AM",
     notes: "",
   },
-  "3": {
+  3: {
     id: "3",
     date: "Mar 15, 2024",
     status: "Delivered",
-    items: [{ name: "5-gallon bottles", quantity: 3, price: 6.00 }],
+    items: [{ name: "5-gallon bottles", quantity: 3, price: 6.0 }],
     price: "$18.00",
     deliveryAddress: "123 Main St, Apt 101, San Francisco, CA 94105",
     paymentMethod: "Mastercard ending in 5678",
@@ -54,7 +54,7 @@ const ORDERS_DATA = {
     orderNumber: "ORD10023421",
     estimatedDelivery: "Delivered on Mar 15, 2024",
     notes: "Call upon arrival",
-  }
+  },
 };
 
 export default function OrderDetailsScreen() {
@@ -67,13 +67,11 @@ export default function OrderDetailsScreen() {
 
   const handleReorder = () => {
     // Navigate to new order page with pre-filled details
-    router.push({
-      pathname: "/order",
-      params: {
-        quantity: order.items[0].quantity.toString(),
-        reorder: "true"
-      }
+    const params = new URLSearchParams({
+      quantity: order.items[0].quantity.toString(),
+      reorder: "true",
     });
+    router.push(`/order?${params.toString()}`);
   };
 
   const getStatusColor = (status) => {
@@ -111,14 +109,18 @@ export default function OrderDetailsScreen() {
               <Text style={styles.dateText}>{order.date}</Text>
             </View>
 
-            <View style={[
-              styles.statusBadge,
-              { backgroundColor: `${getStatusColor(order.status)}15` }
-            ]}>
-              <Text style={[
-                styles.statusText,
-                { color: getStatusColor(order.status) }
-              ]}>
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: `${getStatusColor(order.status)}15` },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: getStatusColor(order.status) },
+                ]}
+              >
                 {order.status}
               </Text>
             </View>
@@ -128,17 +130,20 @@ export default function OrderDetailsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Order Summary</Text>
 
-          {order.items && order.items.map((item, index) => (
-            <View key={index} style={styles.itemRow}>
-              <View style={styles.itemDetails}>
-                <View style={styles.quantityBadge}>
-                  <Text style={styles.quantityText}>{item.quantity}x</Text>
+          {order.items &&
+            order.items.map((item, index) => (
+              <View key={index} style={styles.itemRow}>
+                <View style={styles.itemDetails}>
+                  <View style={styles.quantityBadge}>
+                    <Text style={styles.quantityText}>{item.quantity}x</Text>
+                  </View>
+                  <Text style={styles.itemName}>{item.name}</Text>
                 </View>
-                <Text style={styles.itemName}>{item.name}</Text>
+                <Text style={styles.itemPrice}>
+                  ${(item.quantity * item.price).toFixed(2)}
+                </Text>
               </View>
-              <Text style={styles.itemPrice}>${(item.quantity * item.price).toFixed(2)}</Text>
-            </View>
-          ))}
+            ))}
 
           <View style={styles.divider} />
 
@@ -184,7 +189,11 @@ export default function OrderDetailsScreen() {
           {order.notes && (
             <View style={styles.infoRow}>
               <View style={styles.infoIconContainer}>
-                <Ionicons name="document-text-outline" size={18} color="#1976D2" />
+                <Ionicons
+                  name="document-text-outline"
+                  size={18}
+                  color="#1976D2"
+                />
               </View>
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Delivery Notes</Text>
@@ -208,17 +217,26 @@ export default function OrderDetailsScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.reorderButton}
-          onPress={handleReorder}
-        >
-          <Ionicons name="repeat" size={18} color="#fff" style={styles.buttonIcon} />
+        <TouchableOpacity style={styles.reorderButton} onPress={handleReorder}>
+          <Ionicons
+            name="repeat"
+            size={18}
+            color="#fff"
+            style={styles.buttonIcon}
+          />
           <Text style={styles.reorderButtonText}>Reorder</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.supportButton}>
-          <Ionicons name="help-circle-outline" size={18} color="#1976D2" style={styles.buttonIcon} />
-          <Text style={styles.supportButtonText}>Need Help With This Order?</Text>
+          <Ionicons
+            name="help-circle-outline"
+            size={18}
+            color="#1976D2"
+            style={styles.buttonIcon}
+          />
+          <Text style={styles.supportButtonText}>
+            Need Help With This Order?
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

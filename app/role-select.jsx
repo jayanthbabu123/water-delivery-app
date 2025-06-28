@@ -10,6 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AuthService } from "../src/services/authService";
 
 export default function RoleSelectScreen() {
   const [selectedRole, setSelectedRole] = useState(null);
@@ -44,16 +45,19 @@ export default function RoleSelectScreen() {
 
   const handleContinue = async () => {
     try {
-      // Save role to storage
-      await AsyncStorage.setItem("userRole", selectedRole);
+      // Update role using enhanced AuthService
+      await AuthService.updateUserRole(selectedRole);
 
-      // Find the selected role object
-      const roleObject = roles.find((role) => role.id === selectedRole);
+      // Get updated auth state to determine redirect
+      const authState = await AuthService.getAuthState();
 
-      // Navigate to the appropriate section based on role
-      router.replace(roleObject.route);
+      // Navigate to the appropriate section based on auth state
+      router.replace(authState.redirectTo);
     } catch (error) {
       console.error("Error saving role:", error);
+      // Fallback to direct navigation if auth service fails
+      const roleObject = roles.find((role) => role.id === selectedRole);
+      router.replace(roleObject.route);
     }
   };
 

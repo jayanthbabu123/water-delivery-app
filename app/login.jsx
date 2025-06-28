@@ -22,16 +22,49 @@ import {
   validateIndianPhoneNumber,
   formatPhoneNumber,
 } from "../src/services/auth";
+import { AuthService } from "../src/services/authService";
 
 export default function LoginScreen() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const animatedValue = React.useRef(new Animated.Value(0)).current;
+
+  // Check for existing authentication on mount
+  React.useEffect(() => {
+    const checkExistingAuth = async () => {
+      try {
+        const authState = await AuthService.getAuthState();
+        if (authState.isAuthenticated) {
+          console.log(
+            "User already authenticated, redirecting to:",
+            authState.redirectTo,
+          );
+          router.replace(authState.redirectTo);
+          return;
+        }
+      } catch (error) {
+        console.error("Error checking existing auth:", error);
+      } finally {
+        setCheckingAuth(false);
+      }
+    };
+
+    checkExistingAuth();
+  }, []);
 
   const handleSendOTP = async () => {
     try {
       setLoading(true);
+
+      // Check if user is already authenticated (auto-login check)
+      const authState = await AuthService.getAuthState();
+      if (authState.isAuthenticated) {
+        console.log("User already authenticated, redirecting...");
+        router.replace(authState.redirectTo);
+        return;
+      }
 
       // Validate phone number input
       if (!phoneNumber.trim()) {
@@ -69,13 +102,9 @@ export default function LoginScreen() {
       global.currentConfirmation = confirmation;
 
       // Navigate to OTP verification screen
-      router.push({
-        pathname: "/otp-verification",
-        params: {
-          phoneNumber: formattedNumber,
-          displayNumber: formatPhoneNumber(formattedNumber),
-        },
-      });
+      router.push(
+        `/otp-verification?phoneNumber=${encodeURIComponent(formattedNumber)}&displayNumber=${encodeURIComponent(formatPhoneNumber(formattedNumber))}`,
+      );
     } catch (error) {
       let errorMessage = "Failed to send OTP. Please try again.";
 
@@ -123,6 +152,21 @@ export default function LoginScreen() {
     inputRange: [0, 0.5, 1],
     outputRange: [1, 0.8, 1],
   });
+
+  // Show loading while checking authentication
+  if (checkingAuth) {
+    return (
+      <SafeAreaView style={[styles.container, styles.loadingContainer]}>
+        <StatusBar style="dark" />
+        <View style={styles.loadingContent}>
+          <View style={styles.logoCircle}>
+            <Ionicons name="water" size={60} color="#1976D2" />
+          </View>
+          <Text style={styles.loadingText}>Checking authentication...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -253,6 +297,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#ffffff",
+  },
+  loadingContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingContent: {
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#666666",
+    marginTop: 16,
   },
   backgroundContainer: {
     position: "absolute",

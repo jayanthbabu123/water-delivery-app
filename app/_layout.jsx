@@ -1,13 +1,11 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { Redirect, Stack } from "expo-router";
+import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
 import "react-native-reanimated";
 import {
   SafeAreaProvider,
@@ -19,29 +17,11 @@ import { useColorScheme } from "@/hooks/useColorScheme";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const [isAuthenticated, setIsAuthenticated] = useState(null);
-  const [userRole, setUserRole] = useState(null);
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
 
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const checkAuthStatus = async () => {
-    try {
-      const token = await AsyncStorage.getItem("userToken");
-      const role = await AsyncStorage.getItem("userRole");
-      setIsAuthenticated(!!token);
-      setUserRole(role);
-    } catch (error) {
-      setIsAuthenticated(false);
-      setUserRole(null);
-    }
-  };
-
-  if (!loaded || isAuthenticated === null) {
+  if (!loaded) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#1976D2" />
@@ -58,7 +38,7 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: "white" },
           }}
         >
-          <Stack.Screen name="index" redirect={isAuthenticated} />
+          <Stack.Screen name="index" />
           <Stack.Screen name="login" />
           <Stack.Screen name="otp-verification" />
           <Stack.Screen name="select-community" />

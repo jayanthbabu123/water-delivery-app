@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AuthService } from "../../../src/services/authService";
 
 export default function DeliveryProfile() {
   const router = useRouter();
@@ -41,11 +42,16 @@ export default function DeliveryProfile() {
         {
           text: "Sign Out",
           onPress: async () => {
-            // Clear all relevant storage
-            await AsyncStorage.multiRemove(["userToken", "userRole"]);
+            try {
+              // Use enhanced AuthService to sign out
+              await AuthService.signOut();
 
-            // Navigate to login
-            router.replace("/login");
+              // Navigate to login after successful logout
+              router.replace("/login");
+            } catch (error) {
+              console.error("Error during logout:", error);
+              Alert.alert("Error", "Could not log out. Please try again.");
+            }
           },
         },
       ]);

@@ -117,15 +117,13 @@ export default function OrdersScreen() {
 
   const handleReorder = (order) => {
     // Navigate to order page with pre-filled items
-    router.push({
-      pathname: "/order",
-      params: {
-        reorder: "true",
-        items: JSON.stringify(order.items),
-        address: order.deliveryAddress,
-        notes: order.deliveryNotes,
-      },
+    const params = new URLSearchParams({
+      reorder: "true",
+      items: JSON.stringify(order.items),
+      address: order.deliveryAddress,
+      notes: order.deliveryNotes,
     });
+    router.push(`/order?${params.toString()}`);
   };
 
   const showOrderDetails = (order) => {

@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Select from "../../../components/ui/Select";
 import ScreenHeader from "../../../components/ui/ScreenHeader";
+import { AuthService } from "../../../src/services/authService";
 
 export default function ProfileScreen() {
   // State for address modal
@@ -140,22 +141,33 @@ export default function ProfileScreen() {
 
   // Handle logout
   const handleLogout = async () => {
-    try {
-      // Clear the auth token
-      await AsyncStorage.removeItem("userToken");
-      // Clear any other user data if needed
-      await AsyncStorage.removeItem("selectedCommunity");
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Sign Out",
+        onPress: async () => {
+          try {
+            // Animate the button press
+            animateScale(0.95);
 
-      // Animate the button press and then navigate
-      animateScale(0.95);
-      setTimeout(() => {
-        animateScale(1);
-        router.push("/login");
-      }, 150);
-    } catch (error) {
-      console.error("Error during logout:", error);
-      Alert.alert("Error", "Could not log out. Please try again.");
-    }
+            // Use enhanced AuthService to sign out
+            await AuthService.signOut();
+
+            // Navigate to login after successful logout
+            setTimeout(() => {
+              animateScale(1);
+              router.replace("/login");
+            }, 150);
+          } catch (error) {
+            console.error("Error during logout:", error);
+            Alert.alert("Error", "Could not log out. Please try again.");
+          }
+        },
+      },
+    ]);
   };
 
   // Animation for button press
