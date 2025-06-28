@@ -36,6 +36,9 @@
       }
     },
     "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
       "ios": {
         "resourceClass": "m-medium"
       }
@@ -43,11 +46,40 @@
     "apk": {
       "android": {
         "buildType": "apk"
+      }
+    },
+    "apk-optimized": {
+      "android": {
+        "buildType": "apk",
+        "env": {
+          "NODE_ENV": "production",
+          "android.enableProguardInReleaseBuilds": "true",
+          "android.enableShrinkResourcesInReleaseBuilds": "true"
+        }
+      }
+    },
+    "apk-ultra": {
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease",
+        "image": "ubuntu-22.04-jdk-17-ndk-r25b",
+        "env": {
+          "NODE_ENV": "production",
+          "EXPO_OPTIMIZE_BUNDLE_SIZE": "1",
+          "EXPO_USE_HERMES": "1",
+          "EXPO_MINIFY": "1",
+          "EXPO_NO_FLIPPER": "1",
+          "EXPO_OPTIMIZE_SIZE": "1",
+          "android.enableProguardInReleaseBuilds": "true",
+          "android.enableShrinkResourcesInReleaseBuilds": "true",
+          "android.enableBundleCompression": "true",
+          "android.enableR8FullMode": "true",
+          "ANDROID_GRADLE_OPTS": "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxPermSize=1024m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8 -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true"
+        }
       },
-      "env": {
-        "EXPO_USE_LEGACY_PEER_DEPS": "1"
-      },
-      "node": "18.18.2"
+      "cache": {
+        "key": "ultra-optimized-v1"
+      }
     },
     "ios-preview": {
       "ios": {

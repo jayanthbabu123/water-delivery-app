@@ -18,6 +18,9 @@
 -keep class com.facebook.hermes.unicode.** { *; }
 -keep class com.facebook.jni.** { *; }
 -keep class com.facebook.react.turbomodule.** { *; }
+-keep class com.facebook.react.bridge.** { *; }
+-keep class com.facebook.react.uimanager.** { *; }
+-keep class com.facebook.react.views.** { *; }
 
 # Keep JavaScript callbacks
 -keepclassmembers class * {
@@ -32,27 +35,61 @@
     native <methods>;
 }
 
-# Firebase rules
--keep class com.google.firebase.** { *; }
--keep class com.google.android.gms.** { *; }
+# Firebase rules - more specific to reduce size
+-keep class com.google.firebase.auth.** { *; }
+-keep class com.google.firebase.firestore.** { *; }
+-keep class com.google.firebase.storage.** { *; }
+-keep class com.google.firebase.functions.** { *; }
+-keep class com.google.android.gms.tasks.** { *; }
+-keep class com.google.android.gms.common.** { *; }
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.gms.**
 
-# Expo rules
--keep class expo.modules.** { *; }
+# Expo rules - more specific
+-keep class expo.modules.core.** { *; }
+-keep class expo.modules.kotlin.** { *; }
+-keep class expo.modules.interfaces.** { *; }
 -dontwarn expo.modules.**
 
-# Optimization: Remove Log statements
+# React Native Maps
+-keep class com.google.android.gms.maps.** { *; }
+-keep class com.airbnb.android.react.maps.** { *; }
+
+# Stripe - Comprehensive rules to fix R8 missing classes
+-keep class com.stripe.android.** { *; }
+-keep class com.stripe.android.pushProvisioning.** { *; }
+-keep class com.stripe.android.pushProvisioning.PushProvisioningActivity$* { *; }
+-keep class com.stripe.android.pushProvisioning.PushProvisioningActivityStarter { *; }
+-keep class com.stripe.android.pushProvisioning.PushProvisioningActivityStarter$* { *; }
+-keep class com.stripe.android.pushProvisioning.PushProvisioningEphemeralKeyProvider { *; }
+-keep class com.reactnativestripesdk.** { *; }
+-keep class com.reactnativestripesdk.pushprovisioning.** { *; }
+-dontwarn com.stripe.android.**
+-dontwarn com.stripe.android.pushProvisioning.**
+-dontwarn com.reactnativestripesdk.**
+
+# Optimization: Remove all logging
+# Remove all debug and verbose logs
 -assumenosideeffects class android.util.Log {
     public static *** d(...);
     public static *** v(...);
-    public static *** i(...);
     public static *** w(...);
     public static *** e(...);
     public static *** wtf(...);
+    public static boolean isLoggable(java.lang.String, int);
 }
 
-# Optimization: Remove console logs in release builds
+# Additional Stripe-specific rules for push provisioning
+-keep interface com.stripe.android.** { *; }
+-keep enum com.stripe.android.** { *; }
+
+# Remove console.log statements
+-assumenosideeffects class java.io.PrintStream {
+    public void println(%);
+    public void println(**);
+}
+
+# Optimization: Remove debug code
 -assumenosideeffects class com.facebook.react.bridge.ReactContext {
     public *** getJSModule(...);
 }
@@ -87,9 +124,42 @@
     java.lang.Object readResolve();
 }
 
-# Remove all debug and verbose logs
--assumenosideeffects class android.util.Log {
-    public static boolean isLoggable(java.lang.String, int);
-    public static int v(...);
-    public static int d(...);
+# Aggressive optimization settings
+-optimizationpasses 5
+-dontusemixedcaseclassnames
+-dontskipnonpubliclibraryclasses
+-dontskipnonpubliclibraryclassmembers
+-dontpreverify
+-verbose
+
+# Remove unused code
+-dontwarn **
+-ignorewarnings
+
+# Optimize method calls
+-optimizations !code/simplification/arithmetic,!field/*,!class/merging/*,!code/allocation/variable
+
+# Keep enums
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
 }
+
+# Keep annotations
+-keepattributes *Annotation*
+-keepattributes SourceFile,LineNumberTable
+-keepattributes Signature
+-keepattributes InnerClasses
+-keepattributes EnclosingMethod
+
+# Additional size optimizations
+-repackageclasses ''
+-allowaccessmodification
+
+# Don't merge interfaces aggressively to avoid Stripe issues
+# -mergeinterfacesaggressively
+
+# Additional safety rules for third-party libraries
+-dontwarn java.lang.invoke.**
+-dontwarn **$$serializer
+-dontwarn kotlinx.serialization.**
