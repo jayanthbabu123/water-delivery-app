@@ -11,6 +11,8 @@ import {
   Animated,
   Dimensions,
   Platform,
+  Modal,
+  TextInput,
 } from "react-native";
 import { Ionicons, MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -28,6 +30,12 @@ export default function OrdersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [userData, setUserData] = useState(null);
   const [selectedFilter, setSelectedFilter] = useState("all");
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [communities, setCommunities] = useState([]);
+  const [apartments, setApartments] = useState([]);
+  const [selectedCommunity, setSelectedCommunity] = useState(null);
+  const [selectedApartment, setSelectedApartment] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
   // Filter options
@@ -61,6 +69,7 @@ export default function OrdersScreen() {
         console.log("👤 User data loaded:", user.userId);
         setUserData(user);
         await loadOrders(user.userId);
+        await loadCommunitiesAndApartments();
       } else {
         console.log("❌ No user data found");
         Alert.alert("Error", "Please login first");
@@ -108,21 +117,64 @@ export default function OrdersScreen() {
     }
   }, [userData]);
 
-  const getFilteredOrders = () => {
-    if (selectedFilter === "all") {
-      return orders;
+  // Load communities and apartments for filtering
+  const loadCommunitiesAndApartments = async () => {
+    try {
+      // This is a placeholder - in a real app, you would fetch from your API
+      // For demo purposes, we'll extract them from orders
+      const uniqueCommunities = [
+        ...new Set(orders.map((order) => order.deliveryAddress.communityName)),
+      ];
+      const uniqueApartments = [
+        ...new Set(
+          orders.map((order) => order.deliveryAddress.apartmentNumber),
+        ),
+      ];
+
+      setCommunities(uniqueCommunities.map((name) => ({ name, id: name })));
+      setApartments(uniqueApartments.map((number) => ({ number, id: number })));
+    } catch (error) {
+      console.error("❌ Error loading filters:", error);
     }
+  };
+
+  const getFilteredOrders = () => {
     return orders.filter((order) => {
-      if (selectedFilter === "placed") {
-        return [
-          "placed",
-          "confirmed",
-          "preparing",
-          "out_for_delivery",
-        ].includes(order.status);
-      }
-      return order.status === selectedFilter;
+      // Status filter
+      const statusMatch =
+        selectedFilter === "all" ||
+        (selectedFilter === "placed"
+          ? ["placed", "confirmed", "preparing", "out_for_delivery"].includes(
+              order.status,
+            )
+          : order.status === selectedFilter);
+
+      // Community filter
+      const communityMatch =
+        !selectedCommunity ||
+        order.deliveryAddress.communityName === selectedCommunity;
+
+      // Apartment filter
+      const apartmentMatch =
+        !selectedApartment ||
+        order.deliveryAddress.apartmentNumber === selectedApartment;
+
+      // Search query filter
+      const searchMatch =
+        !searchQuery ||
+        order.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.deliveryAddress.communityName
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
+
+      return statusMatch && communityMatch && apartmentMatch && searchMatch;
     });
+  };
+
+  const resetFilters = () => {
+    setSelectedCommunity(null);
+    setSelectedApartment(null);
+    setSearchQuery("");
   };
 
   const getStatusColor = (status) => {
@@ -331,7 +383,10 @@ export default function OrdersScreen() {
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity style={styles.viewButton}>
+              <TouchableOpacity
+                style={styles.viewButton}
+                onPress={() => handleOrderPress(order)}
+              >
                 <Text style={styles.viewButtonText}>View Details</Text>
                 <Ionicons name="chevron-forward" size={16} color="#1976D2" />
               </TouchableOpacity>
@@ -398,48 +453,235 @@ export default function OrdersScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Orders</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => router.push("/(customer)/order")}
-        >
-          <Ionicons name="add" size={24} color="#1976D2" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setFilterModalVisible(true)}
+          >
+            <Ionicons name="filter" size={20} color="#1976D2" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => router.push("/(customer)/order")}
+          >
+            <Ionicons name="add" size={24} color="#1976D2" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Filter Tabs */}
       {orders.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filtersContainer}
-          contentContainerStyle={styles.filtersContent}
-        >
-          {filterOptions.map((option) => (
-            <TouchableOpacity
-              key={option.key}
-              style={[
-                styles.filterTab,
-                selectedFilter === option.key && styles.activeFilterTab,
-              ]}
-              onPress={() => setSelectedFilter(option.key)}
-            >
-              <Ionicons
-                name={option.icon}
-                size={16}
-                color={selectedFilter === option.key ? "#1976D2" : "#666"}
-              />
-              <Text
+        <View style={styles.filtersContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersContent}
+          >
+            {filterOptions.map((option) => (
+              <TouchableOpacity
+                key={option.key}
                 style={[
-                  styles.filterText,
-                  selectedFilter === option.key && styles.activeFilterText,
+                  styles.filterTab,
+                  selectedFilter === option.key && styles.activeFilterTab,
                 ]}
+                onPress={() => setSelectedFilter(option.key)}
               >
-                {option.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+                <Ionicons
+                  name={option.icon}
+                  size={16}
+                  color={selectedFilter === option.key ? "#1976D2" : "#666"}
+                />
+                <Text
+                  style={[
+                    styles.filterText,
+                    selectedFilter === option.key && styles.activeFilterText,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Active Filters Display */}
+          {(selectedCommunity || selectedApartment || searchQuery) && (
+            <View style={styles.activeFiltersContainer}>
+              {selectedCommunity && (
+                <View style={styles.activeFilterChip}>
+                  <Text style={styles.activeFilterChipText}>
+                    Community: {selectedCommunity}
+                  </Text>
+                  <TouchableOpacity onPress={() => setSelectedCommunity(null)}>
+                    <Ionicons name="close-circle" size={16} color="#666" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {selectedApartment && (
+                <View style={styles.activeFilterChip}>
+                  <Text style={styles.activeFilterChipText}>
+                    Apartment: {selectedApartment}
+                  </Text>
+                  <TouchableOpacity onPress={() => setSelectedApartment(null)}>
+                    <Ionicons name="close-circle" size={16} color="#666" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {searchQuery && (
+                <View style={styles.activeFilterChip}>
+                  <Text style={styles.activeFilterChipText}>
+                    Search: {searchQuery}
+                  </Text>
+                  <TouchableOpacity onPress={() => setSearchQuery("")}>
+                    <Ionicons name="close-circle" size={16} color="#666" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={styles.clearFiltersButton}
+                onPress={resetFilters}
+              >
+                <Text style={styles.clearFiltersText}>Clear All</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       )}
+
+      {/* Filter Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={filterModalVisible}
+        onRequestClose={() => setFilterModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filter Orders</Text>
+              <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Input */}
+            <View style={styles.searchContainer}>
+              <Ionicons
+                name="search"
+                size={20}
+                color="#666"
+                style={styles.searchIcon}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by order ID or community"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery("")}>
+                  <Ionicons name="close-circle" size={20} color="#666" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Community Filter */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>Community</Text>
+              <ScrollView style={styles.filterOptionsList}>
+                <TouchableOpacity
+                  style={[
+                    styles.filterOption,
+                    selectedCommunity === null && styles.selectedFilterOption,
+                  ]}
+                  onPress={() => setSelectedCommunity(null)}
+                >
+                  <Text style={styles.filterOptionText}>All Communities</Text>
+                  {selectedCommunity === null && (
+                    <Ionicons name="checkmark" size={18} color="#1976D2" />
+                  )}
+                </TouchableOpacity>
+
+                {communities.map((community) => (
+                  <TouchableOpacity
+                    key={community.id}
+                    style={[
+                      styles.filterOption,
+                      selectedCommunity === community.name &&
+                        styles.selectedFilterOption,
+                    ]}
+                    onPress={() => setSelectedCommunity(community.name)}
+                  >
+                    <Text style={styles.filterOptionText}>
+                      {community.name}
+                    </Text>
+                    {selectedCommunity === community.name && (
+                      <Ionicons name="checkmark" size={18} color="#1976D2" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* Apartment Filter */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>Apartment</Text>
+              <ScrollView style={styles.filterOptionsList}>
+                <TouchableOpacity
+                  style={[
+                    styles.filterOption,
+                    selectedApartment === null && styles.selectedFilterOption,
+                  ]}
+                  onPress={() => setSelectedApartment(null)}
+                >
+                  <Text style={styles.filterOptionText}>All Apartments</Text>
+                  {selectedApartment === null && (
+                    <Ionicons name="checkmark" size={18} color="#1976D2" />
+                  )}
+                </TouchableOpacity>
+
+                {apartments.map((apartment) => (
+                  <TouchableOpacity
+                    key={apartment.id}
+                    style={[
+                      styles.filterOption,
+                      selectedApartment === apartment.number &&
+                        styles.selectedFilterOption,
+                    ]}
+                    onPress={() => setSelectedApartment(apartment.number)}
+                  >
+                    <Text style={styles.filterOptionText}>
+                      Unit {apartment.number}
+                    </Text>
+                    {selectedApartment === apartment.number && (
+                      <Ionicons name="checkmark" size={18} color="#1976D2" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* Modal Buttons */}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.resetButton}
+                onPress={resetFilters}
+              >
+                <Text style={styles.resetButtonText}>Reset</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.applyButton}
+                onPress={() => setFilterModalVisible(false)}
+              >
+                <Text style={styles.applyButtonText}>Apply Filters</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Orders List */}
       <ScrollView
@@ -489,6 +731,19 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1a1a1a",
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  filterButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E3F2FD",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
   addButton: {
     width: 40,
     height: 40,
@@ -513,29 +768,164 @@ const styles = StyleSheet.create({
     borderBottomColor: "#f0f0f0",
   },
   filtersContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
   },
   filterTab: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 12,
-    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginRight: 8,
+    borderRadius: 16,
     backgroundColor: "#f5f5f5",
+    borderWidth: 1,
+    borderColor: "#eeeeee",
   },
   activeFilterTab: {
     backgroundColor: "#E3F2FD",
+    borderColor: "#BBDEFB",
   },
   filterText: {
-    marginLeft: 6,
-    fontSize: 14,
+    marginLeft: 4,
+    fontSize: 13,
     fontWeight: "500",
     color: "#666",
   },
   activeFilterText: {
     color: "#1976D2",
+  },
+  activeFiltersContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  activeFilterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 6,
+  },
+  activeFilterChipText: {
+    fontSize: 12,
+    color: "#2E7D32",
+  },
+  clearFiltersButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "#FFEBEE",
+  },
+  clearFiltersText: {
+    fontSize: 12,
+    color: "#C62828",
+    fontWeight: "500",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 30,
+    maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1a1a1a",
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  filterSection: {
+    marginBottom: 16,
+  },
+  filterSectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    marginBottom: 8,
+  },
+  filterOptionsList: {
+    maxHeight: 150,
+  },
+  filterOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  selectedFilterOption: {
+    backgroundColor: "#E3F2FD",
+  },
+  filterOptionText: {
+    fontSize: 14,
+    color: "#333",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 20,
+  },
+  resetButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    flex: 1,
+    marginRight: 10,
+    alignItems: "center",
+  },
+  resetButtonText: {
+    color: "#666",
+    fontWeight: "500",
+  },
+  applyButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: "#1976D2",
+    flex: 2,
+    alignItems: "center",
+  },
+  applyButtonText: {
+    color: "#fff",
+    fontWeight: "500",
   },
   scrollView: {
     flex: 1,
