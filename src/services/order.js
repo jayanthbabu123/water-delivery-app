@@ -1,5 +1,5 @@
 import firestore from "@react-native-firebase/firestore";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { DeliveryTimeUtils } from "../utils/deliveryTime";
 
 // Order service for managing order data and operations
 export class OrderService {
@@ -65,7 +65,7 @@ export class OrderService {
           communityId: orderData.deliveryAddress.communityId,
           communityName: orderData.deliveryAddress.communityName,
           apartmentNumber: orderData.deliveryAddress.apartmentNumber,
-          fullAddress: orderData.deliveryAddress.fullAddress,
+          fullAddress: orderData.deliveryAddress.fullAddress || `${orderData.deliveryAddress.communityName}, Unit ${orderData.deliveryAddress.apartmentNumber}`,
           contactName: orderData.deliveryAddress.contactName,
           contactPhone: orderData.deliveryAddress.contactPhone,
           specialInstructions:
@@ -398,21 +398,7 @@ export class OrderService {
 
   // Calculate estimated delivery time
   static calculateEstimatedDelivery() {
-    const now = new Date();
-    const hour = now.getHours();
-
-    // Business hours: 9 AM to 5 PM
-    if (hour >= 9 && hour < 17) {
-      // Same day delivery within business hours
-      const estimatedTime = new Date(now.getTime() + 3 * 60 * 60 * 1000); // 3 hours
-      return estimatedTime.toISOString();
-    } else {
-      // Next day delivery after business hours
-      const nextDay = new Date(now);
-      nextDay.setDate(nextDay.getDate() + 1);
-      nextDay.setHours(11, 0, 0, 0); // 11 AM next day
-      return nextDay.toISOString();
-    }
+    return DeliveryTimeUtils.calculateEstimatedDelivery();
   }
 
   // Update product stock (decrease)

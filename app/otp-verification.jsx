@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -82,7 +82,7 @@ const getErrorMessage = (error, isResendError = false) => {
     : "Invalid OTP. Please try again.";
 };
 
-export default function OTPVerificationScreen() {
+const OTPVerificationScreen = React.memo(() => {
   const params = useLocalSearchParams();
   const { phoneNumber, displayNumber } = params;
 
@@ -96,8 +96,8 @@ export default function OTPVerificationScreen() {
   const [isTimerActive, setIsTimerActive] = useState(true);
   const [confirmation, setConfirmation] = useState(null);
 
-  const inputRefs = useRef([]);
-  const windowHeight = Dimensions.get("window").height;
+  const inputRefs = useRef(Array(6).fill(0).map(() => React.createRef()));
+  const windowHeight = useMemo(() => Dimensions.get("window").height, []);
   const shakeAnimation = useRef(new Animated.Value(0)).current;
   const errorOpacity = useRef(new Animated.Value(0)).current;
 
@@ -117,24 +117,24 @@ export default function OTPVerificationScreen() {
     };
 
     loadStoredConfirmation();
+  }, []); // Only run once on mount
 
-    let interval;
-    if (isTimerActive && timer > 0) {
-      interval = setInterval(() => {
-        setTimer((prevTimer) => {
-          if (prevTimer <= 1) {
-            setIsTimerActive(false);
-            return 0;
-          }
-          return prevTimer - 1;
-        });
-      }, 1000);
-    }
+  // Separate timer effect
+  useEffect(() => {
+    if (!isTimerActive || timer <= 0) return;
 
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isTimerActive, timer]);
+    const interval = setInterval(() => {
+      setTimer((prevTimer) => {
+        if (prevTimer <= 1) {
+          setIsTimerActive(false);
+          return 0;
+        }
+        return prevTimer - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isTimerActive]); // Remove timer from dependencies to prevent unnecessary re-renders
 
   // Focus first input on mount
   useEffect(() => {
@@ -145,15 +145,18 @@ export default function OTPVerificationScreen() {
     return () => clearTimeout(focusTimer);
   }, []);
 
-  const formatTime = (seconds) => {
+  const formatTime = useCallback((seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
+  }, []);
 
   const showErrorMessage = (message) => {
-    setErrorMessage(message);
-    setShowError(true);
+    // Only update if message is different or error is not showing
+    if (errorMessage !== message || !showError) {
+      setErrorMessage(message);
+      setShowError(true);
+    }
 
     // Reset opacity to 0 first, then animate to 1
     errorOpacity.setValue(0);
@@ -197,12 +200,12 @@ export default function OTPVerificationScreen() {
     }
   };
 
-  const clearOTP = () => {
+  const clearOTP = useCallback(() => {
     setOtp(["", "", "", "", "", ""]);
     setTimeout(() => {
       inputRefs.current[0]?.focus();
     }, 100);
-  };
+  }, []);
 
   const handleOtpChange = (text, index) => {
     // Clear any existing error when user starts typing
@@ -219,7 +222,11 @@ export default function OTPVerificationScreen() {
 
     const newOtp = [...otp];
     newOtp[index] = text;
-    setOtp(newOtp);
+    
+    // Only update if the value actually changed
+    if (newOtp[index] !== otp[index]) {
+      setOtp(newOtp);
+    }
 
     // Auto-focus next input
     if (text && index < 5) {
@@ -232,7 +239,7 @@ export default function OTPVerificationScreen() {
     }
   };
 
-  const handleKeyPress = (nativeEvent, index) => {
+  const handleKeyPress = useCallback((nativeEvent, index) => {
     if (nativeEvent.key === "Backspace") {
       if (!otp[index] && index > 0) {
         // Move to previous input if current is empty
@@ -242,7 +249,7 @@ export default function OTPVerificationScreen() {
         setOtp(newOtp);
       }
     }
-  };
+  }, [otp]);
 
   const handleVerify = async (otpArray = otp) => {
     const otpString = otpArray.join("");
@@ -559,7 +566,7 @@ export default function OTPVerificationScreen() {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -773,3 +780,5 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
 });
+
+export default OTPVerificationScreen;

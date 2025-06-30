@@ -1,85 +1,133 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
-  Platform,
-  Modal,
-  KeyboardAvoidingView,
-  Alert,
-  Animated,
-  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import Select from "../../../components/ui/Select";
 import ScreenHeader from "../../../components/ui/ScreenHeader";
+import Select from "../../../components/ui/Select";
 import { AuthService } from "../../../src/services/authService";
+import { CommunityService } from "../../../src/services/community";
+import { OrderService } from "../../../src/services/order";
+import { UserService } from "../../../src/services/user";
 
 export default function ProfileScreen() {
   // State for address modal
   const [addressModalVisible, setAddressModalVisible] = useState(false);
-  const [name, setName] = useState("John Doe");
-  const [email, setEmail] = useState("john.doe@example.com");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const [orderStats, setOrderStats] = useState(null);
+  const [communities, setCommunities] = useState([]);
+  const [apartments, setApartments] = useState([]);
+  const [selectedCommunity, setSelectedCommunity] = useState("");
+  const [selectedApartment, setSelectedApartment] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
 
   // Animation value for scale effect
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
 
-  // User information
-  const userInfo = {
-    name: "John Doe",
-    phone: "+1 234 567 8900",
-    memberSince: "January 2023",
-    totalOrders: 12,
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      setLoading(true);
+      console.log("📱 Loading user data for profile...");
+
+      // Get user data from AsyncStorage
+      const storedUserData = await AsyncStorage.getItem("userData");
+      if (!storedUserData) {
+        console.log("❌ No user data found");
+        Alert.alert("Error", "Please login first");
+        router.replace("/login");
+        return;
+      }
+
+      const user = JSON.parse(storedUserData);
+      console.log("👤 User data loaded:", user.userId);
+      setUserData(user);
+
+      // Load fresh user data from Firestore
+      const freshUserData = await UserService.getUserById(user.userId);
+      if (freshUserData) {
+        setUserData(freshUserData);
+        setName(freshUserData.profile?.name || "");
+        setEmail(freshUserData.profile?.email || "");
+        setSelectedCommunity(freshUserData.profile?.communityId || "");
+        setSelectedApartment(freshUserData.profile?.apartmentNumber || "");
+      }
+
+      // Load order statistics
+      const stats = await OrderService.getUserOrderStats(user.userId);
+      setOrderStats(stats);
+
+      // Load communities
+      const communitiesData = await CommunityService.getCommunities();
+      const formattedCommunities = CommunityService.formatCommunitiesForSelect(communitiesData);
+      setCommunities(formattedCommunities);
+
+      // Load apartments if community is selected
+      if (freshUserData?.profile?.communityId) {
+        const apartmentsData = await CommunityService.getApartments(freshUserData.profile.communityId);
+        const formattedApartments = CommunityService.formatApartmentsForSelect(apartmentsData);
+        setApartments(formattedApartments);
+      }
+
+    } catch (error) {
+      console.error("❌ Error loading user data:", error);
+      Alert.alert("Error", "Failed to load profile data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Address data
-  const [selectedCommunity, setSelectedCommunity] = useState("1");
-  const [selectedApartment, setSelectedApartment] = useState("101");
-
-  // Communities and apartments data
-  const communities = [
-    { value: "1", label: "Sunset Gardens" },
-    { value: "2", label: "Ocean View Apartments" },
-    { value: "3", label: "Mountain Heights" },
-    { value: "4", label: "Riverside Residences" },
-  ];
-
-  const apartments = {
-    1: [
-      { value: "101", label: "Unit 101" },
-      { value: "102", label: "Unit 102" },
-      { value: "201", label: "Unit 201" },
-    ],
-    2: [
-      { value: "301", label: "Unit 301" },
-      { value: "302", label: "Unit 302" },
-    ],
-    3: [
-      { value: "401", label: "Unit 401" },
-      { value: "402", label: "Unit 402" },
-    ],
-    4: [
-      { value: "501", label: "Unit 501" },
-      { value: "502", label: "Unit 502" },
-    ],
+  // Load apartments when community changes
+  const handleCommunityChange = async (communityId) => {
+    try {
+      setSelectedCommunity(communityId);
+      if (communityId) {
+        const apartmentsData = await CommunityService.getApartments(communityId);
+        const formattedApartments = CommunityService.formatApartmentsForSelect(apartmentsData);
+        setApartments(formattedApartments);
+        // Reset apartment selection
+        setSelectedApartment("");
+      } else {
+        setApartments([]);
+        setSelectedApartment("");
+      }
+    } catch (error) {
+      console.error("❌ Error loading apartments:", error);
+      Alert.alert("Error", "Failed to load apartments for this community.");
+    }
   };
 
-  // Find selected community and apartment labels
+  // Get community and apartment labels
   const getCommunityLabel = () => {
-    const community = communities.find((c) => c.value === selectedCommunity);
-    return community ? community.label : "";
+    if (!userData?.profile?.communityId) return "Not set";
+    const community = communities.find(c => c.value === userData.profile.communityId);
+    return community ? community.label : "Unknown Community";
   };
 
   const getApartmentLabel = () => {
-    const apartmentList = apartments[selectedCommunity] || [];
-    const apartment = apartmentList.find((a) => a.value === selectedApartment);
-    return apartment ? apartment.label : "";
+    if (!userData?.profile?.apartmentNumber) return "Not set";
+    return `Unit ${userData.profile.apartmentNumber}`;
   };
 
   const menuItems = [
@@ -95,48 +143,63 @@ export default function ProfileScreen() {
       subtitle: "Get assistance with your orders",
       onPress: () => router.push("/(customer)/support"),
     },
-    {
-      icon: "settings-outline",
-      title: "Settings",
-      subtitle: "App settings and preferences",
-      onPress: () => router.push("/(customer)/settings"),
-    },
   ];
 
-  // Email validation
-  const isValidEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
   // Handle saving the address
-  const handleSaveAddress = () => {
-    if (!name.trim()) {
-      Alert.alert("Missing Information", "Please enter your name");
-      return;
-    }
+  const handleSaveAddress = async () => {
+    try {
+      setSaving(true);
 
-    if (!email.trim()) {
-      Alert.alert("Missing Information", "Please enter your email");
-      return;
-    }
+      // Validate input
+      if (!name.trim()) {
+        Alert.alert("Missing Information", "Please enter your name");
+        return;
+      }
 
-    if (!isValidEmail(email)) {
-      Alert.alert("Invalid Email", "Please enter a valid email address");
-      return;
-    }
+      if (!email.trim()) {
+        Alert.alert("Missing Information", "Please enter your email");
+        return;
+      }
 
-    if (!selectedCommunity || !selectedApartment) {
-      Alert.alert(
-        "Missing Information",
-        "Please select both community and apartment",
-      );
-      return;
-    }
+      if (!UserService.isValidEmail(email)) {
+        Alert.alert("Invalid Email", "Please enter a valid email address");
+        return;
+      }
 
-    // Here you would typically save the data to your backend
-    setAddressModalVisible(false);
-    Alert.alert("Success", "Your information has been updated successfully");
+      if (!selectedCommunity || !selectedApartment) {
+        Alert.alert("Missing Information", "Please select both community and apartment");
+        return;
+      }
+
+      // Update user profile in Firestore
+      const profileData = {
+        name: name.trim(),
+        email: email.trim(),
+        communityId: selectedCommunity,
+        apartmentNumber: selectedApartment,
+      };
+
+      await UserService.updateUserProfile(userData.userId, profileData);
+
+      // Update local state
+      setUserData(prev => ({
+        ...prev,
+        profile: {
+          ...prev.profile,
+          ...profileData,
+          isProfileComplete: true,
+        }
+      }));
+
+      setAddressModalVisible(false);
+      Alert.alert("Success", "Your delivery information has been updated successfully");
+
+    } catch (error) {
+      console.error("❌ Error saving address:", error);
+      Alert.alert("Error", "Failed to update delivery information. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Handle logout
@@ -180,6 +243,19 @@ export default function ProfileScreen() {
     }).start();
   };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+        <StatusBar style="dark" backgroundColor="#fff" />
+        <ScreenHeader title="Profile" showBackButton={true} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1976D2" />
+          <Text style={styles.loadingText}>Loading your profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <StatusBar style="dark" backgroundColor="#fff" />
@@ -196,18 +272,18 @@ export default function ProfileScreen() {
               <Ionicons name="person" size={32} color="#1976D2" />
             </View>
             <View style={styles.userInfo}>
-              <Text style={styles.name}>{userInfo.name}</Text>
-              <Text style={styles.phone}>{userInfo.phone}</Text>
+              <Text style={styles.name}>{userData?.profile?.name || "Not set"}</Text>
+              <Text style={styles.phone}>{userData?.phoneNumber || "Not set"}</Text>
               <View style={styles.memberSince}>
                 <Ionicons name="time-outline" size={14} color="#666" />
                 <Text style={styles.memberSinceText}>
-                  Member since {userInfo.memberSince}
+                  Member since {userData?.createdAt ? new Date(userData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : "Unknown"}
                 </Text>
               </View>
             </View>
           </View>
           <Text style={styles.ordersText}>
-            <Text style={styles.ordersNumber}>{userInfo.totalOrders}</Text>{" "}
+            <Text style={styles.ordersNumber}>{orderStats?.totalOrders || 0}</Text>{" "}
             orders placed
           </Text>
         </View>
@@ -328,12 +404,7 @@ export default function ProfileScreen() {
                   label="Select Community"
                   value={selectedCommunity}
                   options={communities}
-                  onSelect={(value) => {
-                    setSelectedCommunity(value);
-                    if (apartments[value] && apartments[value].length > 0) {
-                      setSelectedApartment(apartments[value][0].value);
-                    }
-                  }}
+                  onSelect={handleCommunityChange}
                   placeholder="Choose your community"
                   searchable
                 />
@@ -341,7 +412,7 @@ export default function ProfileScreen() {
                 <Select
                   label="Select Apartment"
                   value={selectedApartment}
-                  options={apartments[selectedCommunity] || []}
+                  options={apartments}
                   onSelect={(value) => setSelectedApartment(value)}
                   placeholder="Choose your apartment"
                   disabled={!selectedCommunity}
@@ -352,15 +423,21 @@ export default function ProfileScreen() {
                 <TouchableOpacity
                   style={styles.cancelButton}
                   onPress={() => setAddressModalVisible(false)}
+                  disabled={saving}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.saveButton}
+                  style={[styles.saveButton, saving && styles.saveButtonDisabled]}
                   onPress={handleSaveAddress}
+                  disabled={saving}
                 >
-                  <Text style={styles.saveButtonText}>Save Information</Text>
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>Save Information</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -670,5 +747,19 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "500",
+  },
+  saveButtonDisabled: {
+    backgroundColor: "#ccc",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    color: "#1976D2",
+    fontSize: 18,
+    fontWeight: "500",
+    marginTop: 20,
   },
 });

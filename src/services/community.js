@@ -88,12 +88,6 @@ export class CommunityService {
         {
           id: "sunset_gardens",
           name: "Sunset Gardens",
-          address: {
-            street: "123 Sunset Street",
-            city: "Mumbai",
-            state: "Maharashtra",
-            pincode: "400001",
-          },
           apartments: ["101", "102", "201", "202", "301", "302"],
           isActive: true,
           createdAt: new Date().toISOString(),
@@ -101,12 +95,6 @@ export class CommunityService {
         {
           id: "ocean_view",
           name: "Ocean View Apartments",
-          address: {
-            street: "456 Ocean Drive",
-            city: "Mumbai",
-            state: "Maharashtra",
-            pincode: "400002",
-          },
           apartments: ["A101", "A102", "B101", "B102", "C101", "C102"],
           isActive: true,
           createdAt: new Date().toISOString(),
@@ -114,12 +102,6 @@ export class CommunityService {
         {
           id: "mountain_heights",
           name: "Mountain Heights",
-          address: {
-            street: "789 Mountain Road",
-            city: "Mumbai",
-            state: "Maharashtra",
-            pincode: "400003",
-          },
           apartments: ["1A", "1B", "2A", "2B", "3A", "3B"],
           isActive: true,
           createdAt: new Date().toISOString(),
@@ -127,12 +109,6 @@ export class CommunityService {
         {
           id: "riverside",
           name: "Riverside Residences",
-          address: {
-            street: "321 River Lane",
-            city: "Mumbai",
-            state: "Maharashtra",
-            pincode: "400004",
-          },
           apartments: ["101", "102", "201", "202", "301", "302"],
           isActive: true,
           createdAt: new Date().toISOString(),

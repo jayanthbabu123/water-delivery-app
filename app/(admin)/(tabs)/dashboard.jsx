@@ -1,17 +1,17 @@
+import { Ionicons } from "@expo/vector-icons";
+import React from "react";
 import {
+  ScrollView,
   StyleSheet,
   Text,
-  View,
-  ScrollView,
   TouchableOpacity,
+  View,
 } from "react-native";
-import React from "react";
-import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function AdminDashboard() {
-  // Mock data
-  const stats = [
+  // High-level metrics (mock data for now)
+  const metrics = [
     {
       title: "Total Orders",
       value: "2,456",
@@ -19,53 +19,72 @@ export default function AdminDashboard() {
       color: "#4CAF50",
     },
     {
-      title: "Active Customers",
-      value: "876",
-      icon: "people-outline",
-      color: "#2196F3",
-    },
-    {
-      title: "Revenue",
+      title: "Total Revenue",
       value: "$12,435",
       icon: "cash-outline",
       color: "#FFC107",
     },
     {
-      title: "Pending Orders",
-      value: "23",
-      icon: "time-outline",
+      title: "Total Delivery Boys",
+      value: "34",
+      icon: "bicycle-outline",
+      color: "#2196F3",
+    },
+    {
+      title: "Total Admins",
+      value: "5",
+      icon: "person-circle-outline",
+      color: "#9C27B0",
+    },
+    {
+      title: "Total Products",
+      value: "18",
+      icon: "cube-outline",
       color: "#FF5722",
     },
   ];
 
-  const recentOrders = [
+  // Communities (mock data for now)
+  const communities = [
+    { id: "1", name: "Sunset Gardens" },
+    { id: "2", name: "Ocean View Apartments" },
+    { id: "3", name: "Mountain Heights" },
+    { id: "4", name: "Riverside Residences" },
+  ];
+
+  // Tab options (for future implementation)
+  const adminTabs = [
+    { key: "delivery_boys", label: "Delivery Boys", icon: "bicycle-outline" },
+    { key: "orders", label: "Orders", icon: "cart-outline" },
+    { key: "communities", label: "Communities", icon: "business-outline" },
+    { key: "admins", label: "Admins", icon: "person-circle-outline" },
+  ];
+
+  // Manage section cards
+  const manageCards = [
     {
-      id: "ORD001",
-      customer: "John Smith",
-      status: "Delivered",
-      date: "2023-05-12",
-      amount: "$25.00",
+      key: 'communities',
+      label: 'Communities',
+      icon: 'business-outline',
+      color: '#1976D2',
     },
     {
-      id: "ORD002",
-      customer: "Sarah Johnson",
-      status: "Processing",
-      date: "2023-05-11",
-      amount: "$35.50",
+      key: 'delivery_boys',
+      label: 'Delivery Boys',
+      icon: 'bicycle-outline',
+      color: '#2196F3',
     },
     {
-      id: "ORD003",
-      customer: "Michael Brown",
-      status: "Pending",
-      date: "2023-05-11",
-      amount: "$15.00",
+      key: 'admins',
+      label: 'Admins',
+      icon: 'person-circle-outline',
+      color: '#9C27B0',
     },
     {
-      id: "ORD004",
-      customer: "Emily Davis",
-      status: "Delivered",
-      date: "2023-05-10",
-      amount: "$42.75",
+      key: 'products',
+      label: 'Products',
+      icon: 'cube-outline',
+      color: '#FF5722',
     },
   ];
 
@@ -79,149 +98,76 @@ export default function AdminDashboard() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.statsContainer}>
-          {stats.map((stat, index) => (
-            <View key={index} style={styles.statCard}>
+        {/* High-level Metrics */}
+        <View style={styles.metricsContainer}>
+          {metrics.map((metric, index) => (
+            <View key={index} style={styles.metricCard}>
               <View
                 style={[
                   styles.iconContainer,
-                  { backgroundColor: stat.color + "20" },
+                  { backgroundColor: metric.color + "20" },
                 ]}
               >
-                <Ionicons name={stat.icon} size={24} color={stat.color} />
+                <Ionicons name={metric.icon} size={24} color={metric.color} />
               </View>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statTitle}>{stat.title}</Text>
+              <Text style={styles.metricValue}>{metric.value}</Text>
+              <Text style={styles.metricTitle}>{metric.title}</Text>
             </View>
           ))}
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Orders</Text>
-            <TouchableOpacity>
-              <Text style={styles.sectionLink}>View All</Text>
-            </TouchableOpacity>
+        {/* Manage Section (Grid Cards) */}
+        <View style={styles.manageSection}>
+          <Text style={styles.manageTitle}>Manage</Text>
+          <View style={styles.manageGrid}>
+            {manageCards.map((card) => (
+              <TouchableOpacity key={card.key} style={styles.manageCard} activeOpacity={0.85}>
+                <View style={[styles.manageIconContainer, { backgroundColor: card.color + '15' }] }>
+                  <Ionicons name={card.icon} size={28} color={card.color} />
+                </View>
+                <Text style={styles.manageLabel}>{card.label}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-
-          <View style={styles.tableHeader}>
-            <Text style={[styles.tableCell, { flex: 1 }]}>Order ID</Text>
-            <Text style={[styles.tableCell, { flex: 2 }]}>Customer</Text>
-            <Text style={[styles.tableCell, { flex: 1.5 }]}>Status</Text>
-            <Text style={[styles.tableCell, { flex: 1 }]}>Amount</Text>
-          </View>
-
-          {recentOrders.map((order, index) => (
-            <TouchableOpacity key={index} style={styles.tableRow}>
-              <Text style={[styles.tableCell, { flex: 1 }]}>{order.id}</Text>
-              <Text style={[styles.tableCell, { flex: 2 }]}>
-                {order.customer}
-              </Text>
-              <View
-                style={[
-                  styles.statusContainer,
-                  { backgroundColor: getStatusColor(order.status) + "20" },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusText,
-                    { color: getStatusColor(order.status) },
-                  ]}
-                >
-                  {order.status}
-                </Text>
-              </View>
-              <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>
-                {order.amount}
-              </Text>
-            </TouchableOpacity>
-          ))}
         </View>
 
+        {/* Communities Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-          </View>
-
-          <View style={styles.actionsContainer}>
-            <TouchableOpacity style={styles.actionButton}>
-              <View
-                style={[
-                  styles.actionIcon,
-                  { backgroundColor: "#2196F3" + "20" },
-                ]}
-              >
-                <Ionicons name="add-circle-outline" size={24} color="#2196F3" />
-              </View>
-              <Text style={styles.actionText}>Add Product</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.actionButton}>
-              <View
-                style={[
-                  styles.actionIcon,
-                  { backgroundColor: "#4CAF50" + "20" },
-                ]}
-              >
-                <Ionicons name="person-add-outline" size={24} color="#4CAF50" />
-              </View>
-              <Text style={styles.actionText}>Add User</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.actionButton}>
-              <View
-                style={[
-                  styles.actionIcon,
-                  { backgroundColor: "#FFC107" + "20" },
-                ]}
-              >
-                <Ionicons
-                  name="stats-chart-outline"
-                  size={24}
-                  color="#FFC107"
-                />
-              </View>
-              <Text style={styles.actionText}>Reports</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.actionButton}>
-              <View
-                style={[
-                  styles.actionIcon,
-                  { backgroundColor: "#9C27B0" + "20" },
-                ]}
-              >
-                <Ionicons name="settings-outline" size={24} color="#9C27B0" />
-              </View>
-              <Text style={styles.actionText}>Settings</Text>
+            <Text style={styles.sectionTitle}>Communities</Text>
+            <TouchableOpacity>
+              <Text style={styles.sectionLink}>Manage</Text>
             </TouchableOpacity>
           </View>
+          <View style={styles.communitiesList}>
+            {communities.map((community) => (
+              <View key={community.id} style={styles.communityCard}>
+                <Ionicons name="business-outline" size={18} color="#1976D2" style={{ marginRight: 8 }} />
+                <Text style={styles.communityName}>{community.name}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Admin Tabs (future implementation) */}
+        <View style={styles.tabsContainer}>
+          {adminTabs.map((tab) => (
+            <View key={tab.key} style={styles.tabPill}>
+              <Ionicons name={tab.icon} size={16} color="#1976D2" style={{ marginRight: 6 }} />
+              <Text style={styles.tabLabel}>{tab.label}</Text>
+            </View>
+          ))}
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// Helper function to determine status color
-function getStatusColor(status) {
-  switch (status) {
-    case "Delivered":
-      return "#4CAF50";
-    case "Processing":
-      return "#2196F3";
-    case "Pending":
-      return "#FFC107";
-    default:
-      return "#757575";
-  }
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8f9fa",
-    paddingBottom: 80, // Add padding to avoid content being hidden behind the tab bar
+    paddingBottom: 80,
   },
   header: {
     flexDirection: "row",
@@ -247,13 +193,13 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
-  statsContainer: {
+  metricsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
     marginBottom: 24,
   },
-  statCard: {
+  metricCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
@@ -273,13 +219,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  statValue: {
+  metricValue: {
     fontSize: 20,
     fontWeight: "bold",
     color: "#333",
     marginBottom: 4,
   },
-  statTitle: {
+  metricTitle: {
     fontSize: 14,
     color: "#757575",
   },
@@ -310,62 +256,96 @@ const styles = StyleSheet.create({
     color: "#2196F3",
     fontWeight: "500",
   },
-  tableHeader: {
-    flexDirection: "row",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+  communitiesList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
   },
-  tableRow: {
-    flexDirection: "row",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    alignItems: "center",
+  communityCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F6FB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 10,
+    marginBottom: 10,
   },
-  tableCell: {
+  communityName: {
     fontSize: 14,
-    color: "#333",
+    color: '#1976D2',
+    fontWeight: '500',
   },
-  statusContainer: {
-    flex: 1.5,
-    borderRadius: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 4,
+  tabsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 24,
+    marginTop: 8,
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "500",
+  tabPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    marginRight: 8,
+    marginBottom: 8,
   },
-  actionsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
+  tabLabel: {
+    fontSize: 14,
+    color: '#1976D2',
+    fontWeight: '600',
   },
-  actionButton: {
-    width: "48%",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#f0f0f0",
-    alignItems: "center",
+  manageSection: {
+    marginBottom: 24,
+    marginTop: 4,
+    paddingHorizontal: 2,
   },
-  actionIcon: {
+  manageTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 10,
+    marginLeft: 2,
+  },
+  manageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  manageCard: {
+    width: '47%',
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingVertical: 22,
+    alignItems: 'center',
+    marginBottom: 14,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.07,
+    shadowRadius: 2,
+  },
+  manageIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
-  actionText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#333",
+  manageLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1976D2',
+    letterSpacing: 0.1,
   },
 });

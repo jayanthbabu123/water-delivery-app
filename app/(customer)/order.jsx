@@ -1,25 +1,27 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  Platform,
-  ActivityIndicator,
-  TextInput,
-  Modal,
-} from "react-native";
-import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
-import { router } from "expo-router";
+import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ProductService } from "../../src/services/product";
-import { OrderService } from "../../src/services/order";
+import Select from "../../components/ui/Select";
 import { CommunityService } from "../../src/services/community";
+import { OrderService } from "../../src/services/order";
+import { ProductService } from "../../src/services/product";
+import { DeliveryTimeUtils } from "../../src/utils/deliveryTime";
 
 export default function PlaceOrderScreen() {
   // State management
@@ -30,11 +32,16 @@ export default function PlaceOrderScreen() {
   const [userData, setUserData] = useState(null);
   const [deliveryAddress, setDeliveryAddress] = useState(null);
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
+  const [communities, setCommunities] = useState([]);
+  const [apartments, setApartments] = useState([]);
+  const [selectedCommunity, setSelectedCommunity] = useState("");
+  const [selectedApartment, setSelectedApartment] = useState("");
   const [tempAddress, setTempAddress] = useState({
     contactName: "",
     contactPhone: "",
     specialInstructions: "",
-    isTemporary: false,
+    communityId: "",
+    apartmentNumber: "",
   });
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(0);
@@ -118,17 +125,33 @@ export default function PlaceOrderScreen() {
 
   const loadDeliveryAddress = async (user) => {
     try {
+      // Load communities
+      let communitiesData = await CommunityService.getCommunities();
+      const formattedCommunities =
+        CommunityService.formatCommunitiesForSelect(communitiesData);
+      setCommunities(formattedCommunities);
+
       if (user.profile?.communityId && user.profile?.apartmentNumber) {
         const community = await CommunityService.getCommunityById(
           user.profile.communityId,
         );
 
         if (community) {
+          // Load apartments for the community
+          const apartmentsData = await CommunityService.getApartments(
+            user.profile.communityId,
+          );
+          const formattedApartments =
+            CommunityService.formatApartmentsForSelect(apartmentsData);
+          setApartments(formattedApartments);
+
+          setSelectedCommunity(community.id);
+          setSelectedApartment(user.profile.apartmentNumber);
+
           setDeliveryAddress({
             communityId: community.id,
             communityName: community.name,
             apartmentNumber: user.profile.apartmentNumber,
-            fullAddress: `${community.name}, ${community.address.street}, ${community.address.city}, ${community.address.state} - ${community.address.pincode}`,
             contactName: user.profile.name || "",
             contactPhone: user.phoneNumber || "",
             specialInstructions: "",
@@ -179,21 +202,24 @@ export default function PlaceOrderScreen() {
     setTotalAmount(total);
   };
 
-  const calculateEstimatedDelivery = () => {
-    const now = new Date();
-    const hour = now.getHours();
-    const options = { weekday: "short", month: "short", day: "numeric" };
-    const today = now.toLocaleDateString("en-US", options);
-
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowFormatted = tomorrow.toLocaleDateString("en-US", options);
-
-    if (hour >= 9 && hour < 17) {
-      return `${today} by 6:00 PM`;
-    } else {
-      return `${tomorrowFormatted} by 12:00 PM`;
+  const formatDeliveryAddress = () => {
+    if (!deliveryAddress) {
+      return {
+        contactName: "Add delivery address",
+        communityName: "",
+        apartmentNumber: "",
+      };
     }
+
+    return {
+      contactName: deliveryAddress.contactName || "Add contact name",
+      communityName: deliveryAddress.communityName || "",
+      apartmentNumber: deliveryAddress.apartmentNumber || "",
+    };
+  };
+
+  const calculateEstimatedDelivery = () => {
+    return DeliveryTimeUtils.calculateEstimatedDelivery();
   };
 
   const increaseQuantity = () => {
@@ -218,36 +244,71 @@ export default function PlaceOrderScreen() {
 
   const handleAddressChange = () => {
     console.log("📍 handleAddressChange called");
-    console.log("📍 Current modal state:", isAddressModalVisible);
-    console.log("📍 Current delivery address:", deliveryAddress);
-    console.log("📍 Current user data:", userData);
-
     setTempAddress({
       contactName:
         deliveryAddress?.contactName || userData?.profile?.name || "",
       contactPhone:
         deliveryAddress?.contactPhone || userData?.phoneNumber || "",
       specialInstructions: deliveryAddress?.specialInstructions || "",
-      isTemporary: false,
+      communityId: selectedCommunity || deliveryAddress?.communityId || "",
+      apartmentNumber:
+        selectedApartment || deliveryAddress?.apartmentNumber || "",
     });
-
     setIsAddressModalVisible(true);
-    console.log("📍 Modal should be visible now");
   };
 
-  const saveAddressChanges = () => {
-    console.log("💾 Saving address changes:", tempAddress);
+  const handleCommunitySelect = async (communityId) => {
+    setSelectedCommunity(communityId);
+    try {
+      const apartmentsData = await CommunityService.getApartments(communityId);
+      const formattedApartments =
+        CommunityService.formatApartmentsForSelect(apartmentsData);
+      setApartments(formattedApartments);
+      setSelectedApartment("");
+    } catch (error) {
+      console.error("Error loading apartments:", error);
+      Alert.alert("Error", "Failed to load apartments");
+    }
+  };
 
-    // Always update address for this order (temporary)
-    setDeliveryAddress({
-      ...deliveryAddress,
-      contactName: tempAddress.contactName,
-      contactPhone: tempAddress.contactPhone,
-      specialInstructions: tempAddress.specialInstructions,
-    });
+  const saveAddressChanges = async () => {
+    try {
+      if (!selectedCommunity || !selectedApartment) {
+        Alert.alert("Error", "Please select both community and apartment");
+        return;
+      }
 
-    setIsAddressModalVisible(false);
-    console.log("💾 Address updated and modal closed");
+      if (!tempAddress.contactName.trim()) {
+        Alert.alert("Error", "Please enter contact name");
+        return;
+      }
+
+      if (!tempAddress.contactPhone.trim()) {
+        Alert.alert("Error", "Please enter contact phone");
+        return;
+      }
+
+      const community =
+        await CommunityService.getCommunityById(selectedCommunity);
+      if (!community) {
+        Alert.alert("Error", "Failed to load community details");
+        return;
+      }
+
+      setDeliveryAddress({
+        communityId: selectedCommunity,
+        communityName: community.name,
+        apartmentNumber: selectedApartment,
+        contactName: tempAddress.contactName.trim(),
+        contactPhone: tempAddress.contactPhone.trim(),
+        specialInstructions: tempAddress.specialInstructions.trim() || "",
+      });
+
+      setIsAddressModalVisible(false);
+    } catch (error) {
+      console.error("Error saving address changes:", error);
+      Alert.alert("Error", "Failed to save address changes");
+    }
   };
 
   const handlePlaceOrder = async () => {
@@ -260,6 +321,27 @@ export default function PlaceOrderScreen() {
 
       if (!deliveryAddress) {
         Alert.alert("Error", "Delivery address is required");
+        return;
+      }
+
+      // Validate delivery address fields
+      if (!deliveryAddress.communityId || !deliveryAddress.communityName) {
+        Alert.alert("Error", "Please select a valid community");
+        return;
+      }
+
+      if (!deliveryAddress.apartmentNumber) {
+        Alert.alert("Error", "Please select an apartment number");
+        return;
+      }
+
+      if (!deliveryAddress.contactName || !deliveryAddress.contactName.trim()) {
+        Alert.alert("Error", "Please enter contact name");
+        return;
+      }
+
+      if (!deliveryAddress.contactPhone || !deliveryAddress.contactPhone.trim()) {
+        Alert.alert("Error", "Please enter contact phone");
         return;
       }
 
@@ -284,7 +366,7 @@ export default function PlaceOrderScreen() {
       // Prepare order data
       const orderData = {
         userId: userData.userId,
-        communityId: userData.profile.communityId,
+        communityId: deliveryAddress.communityId,
         products: [
           {
             productId: selectedProduct.id,
@@ -300,12 +382,19 @@ export default function PlaceOrderScreen() {
         discount: 0,
         tax: 0,
         totalAmount: totalAmount,
-        deliveryAddress: deliveryAddress,
+        deliveryAddress: {
+          communityId: deliveryAddress.communityId,
+          communityName: deliveryAddress.communityName,
+          apartmentNumber: deliveryAddress.apartmentNumber,
+          contactName: deliveryAddress.contactName.trim(),
+          contactPhone: deliveryAddress.contactPhone.trim(),
+          specialInstructions: deliveryAddress.specialInstructions || "",
+        },
         paymentMethod: {
           type: "card",
-          cardId: paymentMethods[selectedPaymentMethod]?.id,
-          cardLastFour: paymentMethods[selectedPaymentMethod]?.lastFour,
-          cardType: paymentMethods[selectedPaymentMethod]?.cardType,
+          cardId: paymentMethods[selectedPaymentMethod]?.id || null,
+          cardLastFour: paymentMethods[selectedPaymentMethod]?.lastFour || null,
+          cardType: paymentMethods[selectedPaymentMethod]?.cardType || null,
         },
         deliverySchedule: {
           preferredTime: "asap",
@@ -324,6 +413,8 @@ export default function PlaceOrderScreen() {
 
       // Create order
       console.log("📝 Creating order with data:", orderData);
+      console.log("📝 Delivery address:", orderData.deliveryAddress);
+      console.log("📝 Payment method:", orderData.paymentMethod);
       const result = await OrderService.createOrder(orderData);
       console.log("📝 Order creation result:", result);
 
@@ -401,14 +492,18 @@ export default function PlaceOrderScreen() {
             </View>
             <View style={styles.addressDetails}>
               <Text style={styles.addressName}>
-                {deliveryAddress?.contactName}
+                {formatDeliveryAddress().contactName}
               </Text>
-              <Text style={styles.addressText}>
-                {deliveryAddress?.fullAddress}
-              </Text>
-              <Text style={styles.apartmentText}>
-                Unit: {deliveryAddress?.apartmentNumber}
-              </Text>
+              {deliveryAddress?.communityName && (
+                <Text style={styles.addressText}>
+                  {formatDeliveryAddress().communityName}
+                </Text>
+              )}
+              {deliveryAddress?.apartmentNumber && (
+                <Text style={styles.apartmentText}>
+                  Apartment: {formatDeliveryAddress().apartmentNumber}
+                </Text>
+              )}
             </View>
             <TouchableOpacity
               style={styles.changeButton}
@@ -417,7 +512,9 @@ export default function PlaceOrderScreen() {
                 handleAddressChange();
               }}
             >
-              <Text style={styles.changeButtonText}>Change</Text>
+              <Text style={styles.changeButtonText}>
+                {deliveryAddress ? "Change" : "Add"}
+              </Text>
             </TouchableOpacity>
           </TouchableOpacity>
         </View>
@@ -535,6 +632,14 @@ export default function PlaceOrderScreen() {
               <Text style={styles.deliveryTimeSubtext}>Standard delivery</Text>
             </View>
           </View>
+          
+          {/* Delivery Policy Info */}
+          <View style={styles.deliveryPolicyContainer}>
+            <Ionicons name="information-circle-outline" size={16} color="#FF9800" />
+            <Text style={styles.deliveryPolicyText}>
+              {DeliveryTimeUtils.getDeliveryPolicy()}
+            </Text>
+          </View>
         </View>
 
         {/* Payment Methods */}
@@ -599,7 +704,7 @@ export default function PlaceOrderScreen() {
             style={styles.notesInput}
             value={orderNotes}
             onChangeText={setOrderNotes}
-            placeholder="Any special instructions for delivery..."
+            placeholder="Add any special instructions for your order"
             placeholderTextColor="#999"
             multiline
             numberOfLines={3}
@@ -689,7 +794,33 @@ export default function PlaceOrderScreen() {
 
           <ScrollView style={styles.modalContent}>
             <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>Contact Information</Text>
+              <Text style={styles.modalSectionTitle}>Delivery Location</Text>
+
+              <Text style={styles.inputLabel}>Select Community</Text>
+              <Select
+                value={selectedCommunity}
+                options={communities}
+                onSelect={handleCommunitySelect}
+                placeholder="Choose your community"
+                searchable
+              />
+
+              <Text style={styles.inputLabel}>Select Apartment</Text>
+              <Select
+                value={selectedApartment}
+                options={apartments}
+                onSelect={setSelectedApartment}
+                placeholder={
+                  !selectedCommunity
+                    ? "Select community first"
+                    : "Choose your apartment"
+                }
+                disabled={!selectedCommunity}
+              />
+
+              <Text style={styles.modalSectionTitle} >
+                Contact Information
+              </Text>
 
               <Text style={styles.inputLabel}>Contact Name</Text>
               <TextInput
@@ -1157,5 +1288,19 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 80,
     textAlignVertical: "top",
+  },
+  deliveryPolicyContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#f8f8f8",
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  deliveryPolicyText: {
+    fontSize: 12,
+    color: "#666",
+    marginLeft: 8,
+    flex: 1,
   },
 });

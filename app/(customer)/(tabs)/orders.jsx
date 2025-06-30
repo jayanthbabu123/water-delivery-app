@@ -1,26 +1,28 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  RefreshControl,
   ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
-  Platform,
   Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
   TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { Ionicons, MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import { Calendar } from 'react-native-calendars';
 import { SafeAreaView } from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
-import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { OrderService } from "../../../src/services/order";
+import { DeliveryTimeUtils } from "../../../src/utils/deliveryTime";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -37,13 +39,26 @@ export default function OrdersScreen() {
   const [selectedApartment, setSelectedApartment] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const [visibleCount, setVisibleCount] = useState(10);
+  const MAX_VISIBLE = 50;
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarMode, setCalendarMode] = useState('from');
 
   // Filter options
+  const tabCounts = {
+    all: orders.length,
+    placed: orders.filter(order => ["placed", "confirmed", "preparing", "out_for_delivery"].includes(order.status)).length,
+    delivered: orders.filter(order => order.status === "delivered").length,
+    cancelled: orders.filter(order => order.status === "cancelled").length,
+  };
+
   const filterOptions = [
-    { key: "all", label: "All Orders", icon: "receipt-outline" },
-    { key: "placed", label: "Active", icon: "time-outline" },
-    { key: "delivered", label: "Delivered", icon: "checkmark-circle-outline" },
-    { key: "cancelled", label: "Cancelled", icon: "close-circle-outline" },
+    { key: "all", label: `All Orders (${tabCounts.all})`, icon: "receipt-outline" },
+    { key: "placed", label: `Active (${tabCounts.placed})`, icon: "time-outline" },
+    { key: "delivered", label: `Delivered (${tabCounts.delivered})`, icon: "checkmark-circle-outline" },
+    { key: "cancelled", label: `Cancelled (${tabCounts.cancelled})`, icon: "close-circle-outline" },
   ];
 
   useEffect(() => {
@@ -55,6 +70,8 @@ export default function OrdersScreen() {
       duration: 800,
       useNativeDriver: true,
     }).start();
+
+    setVisibleCount(10);
   }, []);
 
   const loadUserDataAndOrders = async () => {
@@ -167,7 +184,19 @@ export default function OrdersScreen() {
           .toLowerCase()
           .includes(searchQuery.toLowerCase());
 
-      return statusMatch && communityMatch && apartmentMatch && searchMatch;
+      // Date range filter
+      let dateMatch = true;
+      if (dateFrom) {
+        dateMatch = new Date(order.createdAt) >= new Date(dateFrom);
+      }
+      if (dateTo && dateMatch) {
+        // Add 1 day to include the end date
+        const endDate = new Date(dateTo);
+        endDate.setHours(23, 59, 59, 999);
+        dateMatch = new Date(order.createdAt) <= endDate;
+      }
+
+      return statusMatch && communityMatch && apartmentMatch && searchMatch && dateMatch;
     });
   };
 
@@ -175,6 +204,8 @@ export default function OrdersScreen() {
     setSelectedCommunity(null);
     setSelectedApartment(null);
     setSearchQuery("");
+    setDateFrom(null);
+    setDateTo(null);
   };
 
   const getStatusColor = (status) => {
@@ -231,9 +262,18 @@ export default function OrdersScreen() {
     return `₹${amount.toFixed(2)}`;
   };
 
+  const formatDeliveryTime = (order) => {
+    if (order.deliverySchedule?.estimatedDelivery) {
+      return order.deliverySchedule.estimatedDelivery;
+    }
+    
+    // Fallback calculation if not stored
+    return DeliveryTimeUtils.calculateEstimatedDelivery(order.createdAt);
+  };
+
   const handleOrderPress = (order) => {
     console.log("📱 Order pressed:", order.orderId);
-    router.push(`/orders/${order.orderId}`);
+    router.push(`/(customer)/order-details?orderId=${order.orderId}`);
   };
 
   const handleReorder = async (order) => {
@@ -276,16 +316,6 @@ export default function OrdersScreen() {
   );
 
   const renderOrderCard = (order, index) => {
-    const isDelivered = order.status === "delivered";
-    const isCancelled =
-      order.status === "cancelled" || order.status === "failed";
-    const isActive = [
-      "placed",
-      "confirmed",
-      "preparing",
-      "out_for_delivery",
-    ].includes(order.status);
-
     return (
       <Animated.View
         key={order.orderId}
@@ -307,125 +337,68 @@ export default function OrdersScreen() {
         <TouchableOpacity
           style={styles.orderCardContent}
           onPress={() => handleOrderPress(order)}
-          activeOpacity={0.7}
+          activeOpacity={0.8}
         >
-          {/* Header */}
-          <View style={styles.orderHeader}>
-            <View style={styles.orderIdContainer}>
-              <Text style={styles.orderIdLabel}>
-                Order #{order.orderId.slice(-6)}
+          {/* Header: Order ID and Status */}
+          <View style={styles.orderHeaderRow}>
+            <Text style={styles.orderIdLabel}>#{order.orderId.slice(-6)}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '22' }]}> 
+              <Ionicons
+                name={getStatusIcon(order.status)}
+                size={14}
+                color={getStatusColor(order.status)}
+                style={{ marginRight: 4 }}
+              />
+              <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}> 
+                {OrderService.getStatusDisplay(order.status)}
               </Text>
-              <View
-                style={[
-                  styles.statusBadge,
-                  { backgroundColor: getStatusColor(order.status) + "20" },
-                ]}
-              >
-                <Ionicons
-                  name={getStatusIcon(order.status)}
-                  size={12}
-                  color={getStatusColor(order.status)}
-                />
-                <Text
-                  style={[
-                    styles.statusText,
-                    { color: getStatusColor(order.status) },
-                  ]}
-                >
-                  {OrderService.getStatusDisplay(order.status)}
-                </Text>
-              </View>
             </View>
-            <Text style={styles.orderDate}>{formatDate(order.createdAt)}</Text>
           </View>
 
-          {/* Products */}
-          <View style={styles.productsContainer}>
-            {order.products.map((product, idx) => (
-              <View key={idx} style={styles.productRow}>
-                <View style={styles.productIcon}>
-                  <Ionicons name="water" size={16} color="#1976D2" />
-                </View>
-                <Text style={styles.productName} numberOfLines={1}>
-                  {product.name}
-                </Text>
-                <Text style={styles.productQuantity}>x{product.quantity}</Text>
-              </View>
-            ))}
-          </View>
+          {/* Date */}
+          <Text style={styles.orderDateElegant}>{formatDate(order.createdAt)}</Text>
 
-          {/* Delivery Address */}
-          <View style={styles.addressContainer}>
-            <Ionicons name="location-outline" size={14} color="#666" />
-            <Text style={styles.addressText} numberOfLines={1}>
-              {order.deliveryAddress.communityName}, Unit{" "}
-              {order.deliveryAddress.apartmentNumber}
+          {/* Product summary */}
+          <View style={styles.productSummaryRow}>
+            <Ionicons name="cube-outline" size={16} color="#1976D2" style={{ marginRight: 6 }} />
+            <Text style={styles.productSummaryText} numberOfLines={1}>
+              {order.products.length === 1
+                ? `${order.products[0].quantity} x ${order.products[0].name}`
+                : `${order.products.length} items`}
             </Text>
           </View>
 
-          {/* Footer */}
-          <View style={styles.orderFooter}>
-            <View style={styles.amountContainer}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalAmount}>
-                {formatOrderAmount(order.totalAmount)}
-              </Text>
-            </View>
-
-            <View style={styles.actionsContainer}>
-              {isDelivered && (
-                <TouchableOpacity
-                  style={styles.reorderButton}
-                  onPress={() => handleReorder(order)}
-                >
-                  <Ionicons name="refresh-outline" size={16} color="#1976D2" />
-                  <Text style={styles.reorderText}>Reorder</Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                style={styles.viewButton}
-                onPress={() => handleOrderPress(order)}
-              >
-                <Text style={styles.viewButtonText}>View Details</Text>
-                <Ionicons name="chevron-forward" size={16} color="#1976D2" />
-              </TouchableOpacity>
-            </View>
+          {/* Delivery address */}
+          <View style={styles.addressRow}>
+            <Ionicons name="location-outline" size={14} color="#666" style={{ marginRight: 4 }} />
+            <Text style={styles.addressTextElegant} numberOfLines={1}>
+              {order.deliveryAddress.communityName}, Unit {order.deliveryAddress.apartmentNumber}
+            </Text>
           </View>
 
-          {/* Active Order Progress */}
-          {isActive && (
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBar}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: `${
-                        order.status === "placed"
-                          ? 25
-                          : order.status === "confirmed"
-                            ? 50
-                            : order.status === "preparing"
-                              ? 75
-                              : 100
-                      }%`,
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={styles.progressText}>
-                {order.status === "placed" && "Order received"}
-                {order.status === "confirmed" && "Order confirmed"}
-                {order.status === "preparing" && "Preparing your order"}
-                {order.status === "out_for_delivery" && "Out for delivery"}
-              </Text>
-            </View>
-          )}
+          {/* Footer: Total and Chevron */}
+          <View style={styles.orderCardFooter}>
+            <Text style={styles.totalLabelElegant}>Total</Text>
+            <Text style={styles.totalAmountElegant}>{formatOrderAmount(order.totalAmount)}</Text>
+            <View style={{ flex: 1 }} />
+            <Ionicons name="chevron-forward" size={22} color="#1976D2" />
+          </View>
         </TouchableOpacity>
       </Animated.View>
     );
   };
+
+  // --- Date picker handlers ---
+  const openCalendar = (mode) => {
+    setCalendarMode(mode);
+    setShowCalendar(true);
+  };
+  const handleCalendarDayPress = (day) => {
+    if (calendarMode === 'from') setDateFrom(day.dateString);
+    else setDateTo(day.dateString);
+    setShowCalendar(false);
+  };
+  const handleCancelCalendar = () => setShowCalendar(false);
 
   if (loading) {
     return (
@@ -444,7 +417,8 @@ export default function OrdersScreen() {
 
   console.log("📱 Rendering orders page with", orders.length, "orders");
 
-  const filteredOrders = getFilteredOrders();
+  const filteredOrders = getFilteredOrders().slice(0, visibleCount);
+  const canShowMore = getFilteredOrders().length > visibleCount && visibleCount < MAX_VISIBLE;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -471,31 +445,48 @@ export default function OrdersScreen() {
 
       {/* Filter Tabs */}
       {orders.length > 0 && (
-        <View style={styles.filtersContainer}>
+        <View style={{ backgroundColor: '#e2e1eb', paddingVertical: 6, paddingHorizontal: 4, borderRadius: 10, marginHorizontal: 12, marginTop: 6, marginBottom: 2 }}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filtersContent}
+            contentContainerStyle={{ gap: 8 }}
           >
             {filterOptions.map((option) => (
               <TouchableOpacity
                 key={option.key}
                 style={[
-                  styles.filterTab,
-                  selectedFilter === option.key && styles.activeFilterTab,
+                  {
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 14,
+                    paddingVertical: 6,
+                    borderRadius: 10,
+                    backgroundColor: selectedFilter === option.key ? '#fff' : 'transparent',
+                    borderWidth: selectedFilter === option.key ? 1.2 : 1,
+                    borderColor: selectedFilter === option.key ? '#1976D2' : 'transparent',
+                    shadowColor: selectedFilter === option.key ? '#1976D2' : 'transparent',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: selectedFilter === option.key ? 0.07 : 0,
+                    shadowRadius: selectedFilter === option.key ? 3 : 0,
+                    elevation: selectedFilter === option.key ? 1 : 0,
+                  },
                 ]}
                 onPress={() => setSelectedFilter(option.key)}
+                activeOpacity={0.85}
               >
                 <Ionicons
                   name={option.icon}
-                  size={16}
-                  color={selectedFilter === option.key ? "#1976D2" : "#666"}
+                  size={15}
+                  color={selectedFilter === option.key ? '#1976D2' : '#888'}
                 />
                 <Text
-                  style={[
-                    styles.filterText,
-                    selectedFilter === option.key && styles.activeFilterText,
-                  ]}
+                  style={{
+                    marginLeft: 6,
+                    fontSize: 14,
+                    fontWeight: selectedFilter === option.key ? '700' : '500',
+                    color: selectedFilter === option.key ? '#1976D2' : '#888',
+                    letterSpacing: 0.1,
+                  }}
                 >
                   {option.label}
                 </Text>
@@ -504,12 +495,13 @@ export default function OrdersScreen() {
           </ScrollView>
 
           {/* Active Filters Display */}
-          {(selectedCommunity || selectedApartment || searchQuery) && (
+          {(selectedCommunity || selectedApartment || searchQuery || dateFrom || dateTo) && (
             <View style={styles.activeFiltersContainer}>
               {selectedCommunity && (
                 <View style={styles.activeFilterChip}>
+                  <Ionicons name="business-outline" size={14} color="#2E7D32" style={{ marginRight: 4 }} />
                   <Text style={styles.activeFilterChipText}>
-                    Community: {selectedCommunity}
+                    {selectedCommunity}
                   </Text>
                   <TouchableOpacity onPress={() => setSelectedCommunity(null)}>
                     <Ionicons name="close-circle" size={16} color="#666" />
@@ -519,8 +511,9 @@ export default function OrdersScreen() {
 
               {selectedApartment && (
                 <View style={styles.activeFilterChip}>
+                  <Ionicons name="home-outline" size={14} color="#2E7D32" style={{ marginRight: 4 }} />
                   <Text style={styles.activeFilterChipText}>
-                    Apartment: {selectedApartment}
+                    Unit {selectedApartment}
                   </Text>
                   <TouchableOpacity onPress={() => setSelectedApartment(null)}>
                     <Ionicons name="close-circle" size={16} color="#666" />
@@ -530,10 +523,28 @@ export default function OrdersScreen() {
 
               {searchQuery && (
                 <View style={styles.activeFilterChip}>
+                  <Ionicons name="search-outline" size={14} color="#2E7D32" style={{ marginRight: 4 }} />
                   <Text style={styles.activeFilterChipText}>
-                    Search: {searchQuery}
+                    "{searchQuery}"
                   </Text>
                   <TouchableOpacity onPress={() => setSearchQuery("")}>
+                    <Ionicons name="close-circle" size={16} color="#666" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {(dateFrom || dateTo) && (
+                <View style={styles.activeFilterChip}>
+                  <Ionicons name="calendar-outline" size={14} color="#2E7D32" style={{ marginRight: 4 }} />
+                  <Text style={styles.activeFilterChipText}>
+                    {dateFrom && dateTo 
+                      ? `${new Date(dateFrom).toLocaleDateString()} - ${new Date(dateTo).toLocaleDateString()}`
+                      : dateFrom 
+                        ? `From ${new Date(dateFrom).toLocaleDateString()}`
+                        : `To ${new Date(dateTo).toLocaleDateString()}`
+                    }
+                  </Text>
+                  <TouchableOpacity onPress={() => { setDateFrom(null); setDateTo(null); }}>
                     <Ionicons name="close-circle" size={16} color="#666" />
                   </TouchableOpacity>
                 </View>
@@ -663,6 +674,37 @@ export default function OrdersScreen() {
               </ScrollView>
             </View>
 
+            {/* Date Range Filter */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>Date Range</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <TouchableOpacity
+                  style={styles.datePickerButton}
+                  onPress={() => openCalendar('from')}
+                >
+                  <Ionicons name="calendar-outline" size={18} color="#1976D2" />
+                  <Text style={styles.datePickerText}>
+                    {dateFrom ? new Date(dateFrom).toLocaleDateString() : 'From'}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={{ color: '#888', fontSize: 16 }}>to</Text>
+                <TouchableOpacity
+                  style={styles.datePickerButton}
+                  onPress={() => openCalendar('to')}
+                >
+                  <Ionicons name="calendar-outline" size={18} color="#1976D2" />
+                  <Text style={styles.datePickerText}>
+                    {dateTo ? new Date(dateTo).toLocaleDateString() : 'To'}
+                  </Text>
+                </TouchableOpacity>
+                {(dateFrom || dateTo) && (
+                  <TouchableOpacity onPress={() => { setDateFrom(null); setDateTo(null); }}>
+                    <Ionicons name="close-circle" size={20} color="#666" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
             {/* Modal Buttons */}
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -682,6 +724,36 @@ export default function OrdersScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Calendar Modal (outside modal, at root of component) */}
+      {showCalendar && (
+        <Modal
+          visible={showCalendar}
+          transparent
+          animationType="fade"
+          onRequestClose={handleCancelCalendar}
+        >
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, width: 340, maxWidth: '90%' }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 12, color: '#1976D2' }}>
+                Select {calendarMode === 'from' ? 'Start' : 'End'} Date
+              </Text>
+              <Calendar
+                onDayPress={handleCalendarDayPress}
+                markedDates={
+                  (calendarMode === 'from' && dateFrom) ? { [dateFrom]: { selected: true, selectedColor: '#1976D2' } } :
+                  (calendarMode === 'to' && dateTo) ? { [dateTo]: { selected: true, selectedColor: '#1976D2' } } : {}
+                }
+                maxDate={calendarMode === 'from' && dateTo ? dateTo : undefined}
+                minDate={calendarMode === 'to' && dateFrom ? dateFrom : undefined}
+              />
+              <TouchableOpacity onPress={handleCancelCalendar} style={{ marginTop: 16, alignSelf: 'flex-end' }}>
+                <Text style={{ color: '#1976D2', fontWeight: '600', fontSize: 15 }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
 
       {/* Orders List */}
       <ScrollView
@@ -707,6 +779,17 @@ export default function OrdersScreen() {
           </View>
         )}
       </ScrollView>
+
+      {canShowMore && (
+        <TouchableOpacity
+          style={{ alignSelf: 'center', marginVertical: 16, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 24, backgroundColor: '#1976D2' }}
+          onPress={() => setVisibleCount(v => Math.min(v + 10, MAX_VISIBLE))}
+        >
+          <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>
+            Show More
+          </Text>
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 }
@@ -775,26 +858,39 @@ const styles = StyleSheet.create({
   filterTab: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    marginRight: 8,
-    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    marginRight: 12,
+    borderRadius: 22,
     backgroundColor: "#f5f5f5",
     borderWidth: 1,
-    borderColor: "#eeeeee",
+    borderColor: "#E3F2FD",
+    minWidth: 80,
+    minHeight: 40,
+    shadowColor: "#1976D2",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
   activeFilterTab: {
-    backgroundColor: "#E3F2FD",
-    borderColor: "#BBDEFB",
+    backgroundColor: "#1976D2",
+    borderColor: "#1976D2",
+    shadowColor: "#1976D2",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 2,
   },
   filterText: {
-    marginLeft: 4,
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#666",
+    marginLeft: 6,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1976D2",
+    letterSpacing: 0.1,
   },
   activeFilterText: {
-    color: "#1976D2",
+    color: "#fff",
   },
   activeFiltersContainer: {
     flexDirection: "row",
@@ -932,6 +1028,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    paddingBottom: 80,
   },
   emptyContainer: {
     flex: 1,
@@ -998,14 +1095,11 @@ const styles = StyleSheet.create({
   orderCardContent: {
     padding: 16,
   },
-  orderHeader: {
-    marginBottom: 12,
-  },
-  orderIdContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
+  orderHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   orderIdLabel: {
     fontSize: 16,
@@ -1024,115 +1118,67 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginLeft: 4,
   },
-  orderDate: {
-    fontSize: 12,
-    color: "#666",
+  orderDateElegant: {
+    fontSize: 13,
+    color: '#888',
+    marginBottom: 10,
+    marginLeft: 2,
   },
-  productsContainer: {
+  productSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    marginLeft: 2,
+  },
+  productSummaryText: {
+    fontSize: 14,
+    color: '#222',
+    fontWeight: '500',
+  },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 12,
+    marginLeft: 2,
   },
-  productRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  productIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    backgroundColor: "#E3F2FD",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
-  },
-  productName: {
-    flex: 1,
-    fontSize: 14,
-    color: "#333",
-  },
-  productQuantity: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#666",
-  },
-  addressContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  addressText: {
-    flex: 1,
-    fontSize: 12,
-    color: "#666",
-    marginLeft: 6,
-  },
-  orderFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  amountContainer: {
+  addressTextElegant: {
+    fontSize: 13,
+    color: '#666',
     flex: 1,
   },
-  totalLabel: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 2,
+  orderCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    paddingTop: 10,
+    marginTop: 6,
+    gap: 8,
   },
-  totalAmount: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1976D2",
-  },
-  actionsContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  reorderButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 12,
-    borderRadius: 16,
-    backgroundColor: "#E3F2FD",
-  },
-  reorderText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#1976D2",
-    marginLeft: 4,
-  },
-  viewButton: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  viewButtonText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#1976D2",
+  totalLabelElegant: {
+    fontSize: 13,
+    color: '#888',
     marginRight: 4,
   },
-  progressContainer: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+  totalAmountElegant: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1976D2',
+    marginRight: 8,
   },
-  progressBar: {
-    height: 4,
-    backgroundColor: "#f0f0f0",
-    borderRadius: 2,
-    marginBottom: 8,
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 4,
   },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#1976D2",
-    borderRadius: 2,
-  },
-  progressText: {
-    fontSize: 12,
-    color: "#666",
-    fontWeight: "500",
+  datePickerText: {
+    marginLeft: 6,
+    color: '#1976D2',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

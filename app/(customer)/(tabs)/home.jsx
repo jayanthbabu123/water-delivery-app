@@ -1,25 +1,23 @@
 import {
+  FontAwesome,
   Ionicons,
   MaterialCommunityIcons,
-  FontAwesome,
 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
+  Animated,
+  Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Animated,
-  Platform,
-  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import ScreenHeader from "../../../components/ui/ScreenHeader";
-import UserService from "../../../src/services/user";
 import CommunityService from "../../../src/services/community";
 
 export default function CustomerHomeScreen() {
@@ -188,10 +186,10 @@ export default function CustomerHomeScreen() {
           </TouchableOpacity> */}
         </Animated.View>
 
-        {/* Quick Order Card */}
+        {/* App Description Card */}
         <Animated.View
           style={[
-            styles.quickOrderCard,
+            styles.appDescriptionCard,
             {
               opacity: fadeAnim,
               transform: [
@@ -205,39 +203,40 @@ export default function CustomerHomeScreen() {
             },
           ]}
         >
-          <View style={styles.quickOrderContent}>
-            <View>
-              <Text style={styles.quickOrderTitle}>Need Water?</Text>
-              <Text style={styles.quickOrderSubtitle}>
-                Get your 5-gallon bottle delivered today
-              </Text>
-              <View style={styles.deliveryInfoContainer}>
-                <Ionicons
-                  name="time-outline"
-                  size={14}
-                  color="#FFFFFF"
-                  style={{ opacity: 0.9 }}
-                />
-                <Text style={styles.deliveryInfoText}>
-                  Delivery within 2-3 hours
-                </Text>
+          <View style={styles.appDescriptionCardOverlay} />
+          <View style={styles.appDescriptionHeader}>
+            <View style={styles.appDescriptionIconContainer}>
+              <MaterialCommunityIcons name="truck-delivery" size={32} color="#fff" />
+            </View>
+            <View style={styles.appDescriptionTitleContainer}>
+              <Text style={styles.appDescriptionMainTitle}>Water & More</Text>
+              <Text style={styles.appDescriptionSubtitle}>Delivered to Your Door</Text>
+            </View>
+          </View>
+          <View style={styles.appDescriptionContent}>
+            <Text style={styles.appDescriptionText}>
+              Get premium water, fresh groceries, and daily essentials delivered right to your doorstep with our reliable, fast delivery service.
+            </Text>
+            <View style={styles.appDescriptionFeaturesGrid}>
+              <View style={styles.appDescriptionFeatureCard}>
+                <View style={styles.featureIconWrapper}>
+                  <Ionicons name="flash" size={16} color="#4CAF50" />
+                </View>
+                <Text style={styles.featureLabel}>Fast Delivery</Text>
+              </View>
+              <View style={styles.appDescriptionFeatureCard}>
+                <View style={styles.featureIconWrapper}>
+                  <Ionicons name="shield-checkmark" size={16} color="#2196F3" />
+                </View>
+                <Text style={styles.featureLabel}>Quality Assured</Text>
+              </View>
+              <View style={styles.appDescriptionFeatureCard}>
+                <View style={styles.featureIconWrapper}>
+                  <Ionicons name="lock-closed" size={16} color="#FF9800" />
+                </View>
+                <Text style={styles.featureLabel}>Secure Payment</Text>
               </View>
             </View>
-            <TouchableOpacity
-              style={styles.orderButton}
-              onPress={() => router.push("/(customer)/order")}
-            >
-              <Text style={styles.orderButtonText}>Order Now</Text>
-              <Ionicons
-                name="arrow-forward"
-                size={16}
-                color="#007AFF"
-                style={{ marginLeft: 5 }}
-              />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.waterIconContainer}>
-            <MaterialCommunityIcons name="water-pump" size={80} color="#fff" />
           </View>
         </Animated.View>
 
@@ -263,6 +262,17 @@ export default function CustomerHomeScreen() {
         >
           <TouchableOpacity
             style={styles.featureCard}
+            onPress={() => router.push("/(customer)/order")}
+          >
+            <View style={[styles.featureIcon, { backgroundColor: "#E8F5E8" }]}>
+              <Ionicons name="add-circle-outline" size={24} color="#4CAF50" />
+            </View>
+            <Text style={styles.featureTitle}>Order</Text>
+            <Text style={styles.featureSubtitle}>Place new order</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.featureCard}
             onPress={() => router.push("/(customer)/(tabs)/payments")}
           >
             <View style={[styles.featureIcon, { backgroundColor: "#E3F2FD" }]}>
@@ -282,109 +292,16 @@ export default function CustomerHomeScreen() {
             <Text style={styles.featureTitle}>Support</Text>
             <Text style={styles.featureSubtitle}>Get assistance</Text>
           </TouchableOpacity>
-        </Animated.View>
-
-        {/* Recent Orders */}
-        <View style={styles.sectionHeaderContainer}>
-          <Text style={styles.recentOrdersTitle}>Recent Orders</Text>
-          <TouchableOpacity
-            style={styles.seeAllButton}
-            onPress={() => router.push("/(customer)/(tabs)/orders")}
-          >
-            <Text style={styles.seeAllText}>See All</Text>
-            <Ionicons name="chevron-forward" size={14} color="#007AFF" />
-          </TouchableOpacity>
-        </View>
-        <Animated.View
-          style={[
-            styles.recentOrders,
-            {
-              opacity: fadeAnim,
-              transform: [
-                {
-                  translateY: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [30, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.orderCard}
-            onPress={() => router.push("/(customer)/(tabs)/orders")}
-          >
-            <View style={styles.orderInfo}>
-              <View style={styles.orderDateContainer}>
-                <Ionicons
-                  name="time-outline"
-                  size={14}
-                  color="#666"
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={styles.orderDate}>Today, 2:30 PM</Text>
-              </View>
-              <View style={styles.statusBadge}>
-                <Text style={styles.orderStatus}>Delivered</Text>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={12}
-                  color="#4CAF50"
-                  style={{ marginLeft: 4 }}
-                />
-              </View>
-            </View>
-            <View style={styles.orderDetails}>
-              <View style={styles.orderQuantityContainer}>
-                <Ionicons
-                  name="water-outline"
-                  size={16}
-                  color="#1976D2"
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={styles.orderQuantity}>2 x 5-gallon bottles</Text>
-              </View>
-              <Text style={styles.orderPrice}>$12.00</Text>
-            </View>
-          </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.orderCard, styles.orderCardSecondary]}
+            style={styles.featureCard}
             onPress={() => router.push("/(customer)/(tabs)/orders")}
           >
-            <View style={styles.orderInfo}>
-              <View style={styles.orderDateContainer}>
-                <Ionicons
-                  name="time-outline"
-                  size={14}
-                  color="#666"
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={styles.orderDate}>Yesterday, 10:15 AM</Text>
-              </View>
-              <View style={styles.statusBadge}>
-                <Text style={styles.orderStatus}>Delivered</Text>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={12}
-                  color="#4CAF50"
-                  style={{ marginLeft: 4 }}
-                />
-              </View>
+            <View style={[styles.featureIcon, { backgroundColor: "#FFF3E0" }]}>
+              <Ionicons name="receipt-outline" size={24} color="#FF9800" />
             </View>
-            <View style={styles.orderDetails}>
-              <View style={styles.orderQuantityContainer}>
-                <Ionicons
-                  name="water-outline"
-                  size={16}
-                  color="#1976D2"
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={styles.orderQuantity}>1 x 5-gallon bottle</Text>
-              </View>
-              <Text style={styles.orderPrice}>$6.00</Text>
-            </View>
+            <Text style={styles.featureTitle}>Orders</Text>
+            <Text style={styles.featureSubtitle}>View order history</Text>
           </TouchableOpacity>
         </Animated.View>
       </ScrollView>
@@ -563,98 +480,123 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginRight: 4,
   },
-  quickOrderCard: {
-    backgroundColor: "#007AFF",
+  appDescriptionCard: {
     marginHorizontal: 20,
     marginBottom: 25,
-    padding: 20,
-    borderRadius: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    borderRadius: 20,
+    backgroundColor: "#2196F3",
+    overflow: "hidden",
+    position: "relative",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
-    shadowRadius: 5,
-    elevation: 5,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  quickOrderContent: {
-    flex: 1,
+  appDescriptionCardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#1976D2",
+    opacity: 0.45,
+    borderRadius: 20,
+    transform: [{ rotate: "-8deg" }],
   },
-  quickOrderTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 8,
-  },
-  quickOrderSubtitle: {
-    fontSize: 16,
-    color: "rgba(255, 255, 255, 0.9)",
-    marginBottom: 10,
-    lineHeight: 22,
-  },
-  deliveryInfoContainer: {
+  appDescriptionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+    padding: 20,
+    paddingBottom: 16,
+  },
+  appDescriptionIconContainer: {
+    width: 60,
+    height: 60,
     borderRadius: 15,
-    marginBottom: 16,
-    alignSelf: "flex-start",
-  },
-  deliveryInfoText: {
-    fontSize: 12,
-    color: "#FFFFFF",
-    marginLeft: 5,
-    fontWeight: "500",
-  },
-  orderButton: {
-    backgroundColor: "#fff",
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  orderButtonText: {
-    color: "#007AFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  waterIconContainer: {
-    width: 100,
-    height: 100,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
-    opacity: 0.9,
-    marginLeft: 10,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  appDescriptionTitleContainer: {
+    flex: 1,
+    paddingLeft: 16,
+  },
+  appDescriptionMainTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#fff",
+    marginBottom: 4,
+    letterSpacing: 0.5,
+  },
+  appDescriptionSubtitle: {
+    fontSize: 16,
+    color: "rgba(255, 255, 255, 0.9)",
+    fontWeight: "500",
+  },
+  appDescriptionContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  appDescriptionText: {
+    fontSize: 15,
+    color: "rgba(255, 255, 255, 0.9)",
+    marginBottom: 20,
+    lineHeight: 22,
+    fontWeight: "500",
+  },
+  appDescriptionFeaturesGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  appDescriptionFeatureCard: {
+    width: "30%",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  featureIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  featureLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#fff",
+    textAlign: "center",
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#1a1a1a",
+    marginTop: 25,
+    marginBottom: 15,
+    marginLeft: 20,
   },
   featuresGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     marginBottom: 25,
   },
   featureCard: {
     width: "48%",
-    padding: 15,
-    margin: 10,
+    padding: 20,
     backgroundColor: "#fff",
     borderRadius: 16,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
+    minHeight: 140,
+    justifyContent: "center",
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
   },
   featureIcon: {
     width: 60,
@@ -675,107 +617,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     textAlign: "center",
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-    marginTop: 25,
-    marginBottom: 15,
-    marginLeft: 20,
-  },
-  recentOrdersTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-  },
-  sectionHeaderContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    marginTop: 25,
-    marginBottom: 15,
-  },
-  recentOrders: {
-    paddingHorizontal: 20,
-    paddingTop: 0,
-    marginBottom: 20,
-  },
-  seeAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 122, 255, 0.08)",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-  },
-  seeAllText: {
-    fontSize: 14,
-    color: "#007AFF",
-    fontWeight: "500",
-    marginRight: 4,
-  },
-  orderCard: {
-    backgroundColor: "#f8f9fa",
-    padding: 18,
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-    marginBottom: 12,
-    marginHorizontal: 0,
-  },
-  orderCardSecondary: {
-    backgroundColor: "#fafafa",
-  },
-  orderInfo: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
-    alignItems: "center",
-  },
-  orderDateContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  orderDate: {
-    fontSize: 14,
-    color: "#666",
-  },
-  statusBadge: {
-    backgroundColor: "rgba(76, 175, 80, 0.1)",
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    minWidth: 70,
-  },
-  orderStatus: {
-    fontSize: 12,
-    color: "#4CAF50",
-    fontWeight: "600",
-  },
-  orderDetails: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  orderQuantityContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  orderQuantity: {
-    fontSize: 15,
-    color: "#1a1a1a",
-  },
-  orderPrice: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1a1a1a",
   },
 });

@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
@@ -17,9 +16,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Select from "../components/ui/Select";
-import UserService from "../src/services/user";
-import CommunityService from "../src/services/community";
 import { AuthService } from "../src/services/authService";
+import CommunityService from "../src/services/community";
+import UserService from "../src/services/user";
 
 export default function SelectCommunityScreen() {
   const [selectedCommunity, setSelectedCommunity] = useState("");
@@ -120,9 +119,15 @@ export default function SelectCommunityScreen() {
 
       // Get updated auth state to determine redirect
       const authState = await AuthService.getAuthState();
+      console.log("authState", authState);
 
-      // Navigate based on auth state
-      router.replace(authState.redirectTo);
+      // Always redirect to customer home if unauthenticated or redirect path is missing
+      if (authState && typeof authState.redirectTo === "string") {
+        router.replace(authState.redirectTo);
+      } else {
+        // Fallback: treat as customer and go to home
+        router.replace("/(customer)/(tabs)/home");
+      }
     } catch (error) {
       Alert.alert("Error", "Failed to save profile. Please try again.");
       console.error("Error saving profile:", error);

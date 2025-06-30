@@ -24,12 +24,25 @@ export default function AdminTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="delivery-boys"
+        options={{
+          title: "Delivery Boys",
+          tabBarIcon: ({ focused, color, size }) => (
+            <Ionicons
+              name={focused ? "bicycle" : "bicycle-outline"}
+              size={size}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="orders"
         options={{
           title: "Orders",
           tabBarIcon: ({ focused, color, size }) => (
             <Ionicons
-              name={focused ? "list" : "list-outline"}
+              name={focused ? "cart" : "cart-outline"}
               size={size}
               color={color}
             />
@@ -37,12 +50,12 @@ export default function AdminTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="users"
+        name="communities"
         options={{
-          title: "Users",
+          title: "Communities",
           tabBarIcon: ({ focused, color, size }) => (
             <Ionicons
-              name={focused ? "people" : "people-outline"}
+              name={focused ? "business" : "business-outline"}
               size={size}
               color={color}
             />
@@ -50,25 +63,12 @@ export default function AdminTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="inventory"
+        name="admins"
         options={{
-          title: "Inventory",
+          title: "Admins",
           tabBarIcon: ({ focused, color, size }) => (
             <Ionicons
-              name={focused ? "cube" : "cube-outline"}
-              size={size}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: "Settings",
-          tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons
-              name={focused ? "settings" : "settings-outline"}
+              name={focused ? "person-circle" : "person-circle-outline"}
               size={size}
               color={color}
             />

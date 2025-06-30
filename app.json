@@ -16,7 +16,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.waterdelivery.app",
-      "buildNumber": "1.0.0"
+      "buildNumber": "1.0.0",
+      "deploymentTarget": "15.1"
     },
     "android": {
       "package": "com.waterdelivery.app",
@@ -42,7 +43,7 @@
             "enableShrinkResourcesInReleaseBuilds": true
           },
           "ios": {
-            "deploymentTarget": "13.4"
+            "deploymentTarget": "15.1"
           }
         }
       ]
